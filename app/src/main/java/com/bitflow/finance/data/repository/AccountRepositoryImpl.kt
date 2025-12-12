@@ -4,32 +4,43 @@ import com.bitflow.finance.data.local.dao.AccountDao
 import com.bitflow.finance.data.local.entity.AccountEntity
 import com.bitflow.finance.domain.model.Account
 import com.bitflow.finance.domain.repository.AccountRepository
+import com.bitflow.finance.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 class AccountRepositoryImpl @Inject constructor(
-    private val dao: AccountDao
+    private val dao: AccountDao,
+    private val authRepository: AuthRepository
 ) : AccountRepository {
 
     override fun getAllAccounts(): Flow<List<Account>> {
-        return dao.getAllAccounts().map { entities -> entities.map { it.toDomain() } }
+        return authRepository.currentUserId.flatMapLatest { userId ->
+            dao.getAllAccounts(userId).map { entities -> entities.map { it.toDomain() } }
+        }
     }
 
     override suspend fun getAccountById(id: Long): Account? {
-        return dao.getAccountById(id)?.toDomain()
+        val userId = authRepository.currentUserId.first()
+        return dao.getAccountById(id, userId)?.toDomain()
     }
 
     override suspend fun insertAccount(account: Account): Long {
-        return dao.insertAccount(account.toEntity())
+        val userId = authRepository.currentUserId.first()
+        return dao.insertAccount(account.toEntity(userId))
     }
 
     override suspend fun updateAccount(account: Account) {
-        dao.updateAccount(account.toEntity())
+        val userId = authRepository.currentUserId.first()
+        dao.updateAccount(account.toEntity(userId))
     }
     
     override suspend fun updateBalance(accountId: Long, newBalance: Double) {
-        dao.updateBalance(accountId, newBalance)
+        val userId = authRepository.currentUserId.first()
+        dao.updateBalance(accountId, newBalance, userId)
     }
 
     private fun AccountEntity.toDomain(): Account {
@@ -45,9 +56,10 @@ class AccountRepositoryImpl @Inject constructor(
         )
     }
 
-    private fun Account.toEntity(): AccountEntity {
+    private fun Account.toEntity(userId: String): AccountEntity {
         return AccountEntity(
             id = id,
+            userId = userId,
             name = name,
             type = type,
             color = color,

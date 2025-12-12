@@ -13,8 +13,10 @@ import com.bitflow.finance.domain.model.CategoryLearningRule
 import com.bitflow.finance.domain.model.RecurringPattern
 import com.bitflow.finance.domain.model.SubscriptionDetectionCard
 import com.bitflow.finance.domain.repository.TransactionRepository
+import com.bitflow.finance.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import javax.inject.Inject
@@ -22,36 +24,46 @@ import javax.inject.Inject
 class TransactionRepositoryImpl @Inject constructor(
     private val transactionDao: TransactionDao,
     private val categoryDao: CategoryDao,
-    private val learningRuleDao: LearningRuleDao
+    private val learningRuleDao: LearningRuleDao,
+    private val authRepository: AuthRepository
 ) : TransactionRepository {
 
     override fun getAllTransactions(): Flow<List<Activity>> {
-        return transactionDao.getAllTransactions().map { entities -> entities.map { it.toDomain() } }
+        return authRepository.currentUserId.flatMapLatest { userId ->
+            transactionDao.getAllTransactions(userId).map { entities -> entities.map { it.toDomain() } }
+        }
     }
 
     override fun getTransactionsForAccount(accountId: Long): Flow<List<Activity>> {
-        return transactionDao.getTransactionsForAccount(accountId).map { entities -> entities.map { it.toDomain() } }
+        return authRepository.currentUserId.flatMapLatest { userId ->
+            transactionDao.getTransactionsForAccount(accountId, userId).map { entities -> entities.map { it.toDomain() } }
+        }
     }
 
     override fun getTransactionsInPeriod(startDate: LocalDate, endDate: LocalDate): Flow<List<Activity>> {
-        return transactionDao.getTransactionsInPeriod(startDate, endDate).map { entities -> entities.map { it.toDomain() } }
+        return authRepository.currentUserId.flatMapLatest { userId ->
+            transactionDao.getTransactionsInPeriod(startDate, endDate, userId).map { entities -> entities.map { it.toDomain() } }
+        }
     }
 
     override suspend fun insertTransaction(transaction: Activity): Long {
-        return transactionDao.insertTransaction(transaction.toEntity())
+        val userId = authRepository.currentUserId.first()
+        return transactionDao.insertTransaction(transaction.toEntity(userId))
     }
 
     override suspend fun insertTransactions(transactions: List<Activity>) {
         // Batch insert without per-transaction logging for performance
         if (transactions.isNotEmpty()) {
+            val userId = authRepository.currentUserId.first()
             println("[TransactionRepository] Batch inserting ${transactions.size} transactions")
-            transactionDao.insertTransactions(transactions.map { it.toEntity() })
+            transactionDao.insertTransactions(transactions.map { it.toEntity(userId) })
             println("[TransactionRepository] Batch insert completed")
         }
     }
 
     override suspend fun updateTransaction(transaction: Activity) {
-        transactionDao.updateTransaction(transaction.toEntity())
+        val userId = authRepository.currentUserId.first()
+        transactionDao.updateTransaction(transaction.toEntity(userId))
     }
 
     override suspend fun findExistingTransaction(
@@ -60,11 +72,13 @@ class TransactionRepositoryImpl @Inject constructor(
         amount: Double,
         description: String
     ): Activity? {
-        return transactionDao.findExistingTransaction(accountId, date, amount, description)?.toDomain()
+        val userId = authRepository.currentUserId.first()
+        return transactionDao.findExistingTransaction(accountId, date, amount, description, userId)?.toDomain()
     }
 
     override suspend fun getTransactionById(id: Long): Activity? {
-        return transactionDao.getTransactionById(id)?.toDomain()
+        val userId = authRepository.currentUserId.first()
+        return transactionDao.getTransactionById(id, userId)?.toDomain()
     }
 
     private fun TransactionEntity.toDomain(): Activity {
@@ -87,9 +101,10 @@ class TransactionRepositoryImpl @Inject constructor(
         )
     }
 
-    private fun Activity.toEntity(): TransactionEntity {
+    private fun Activity.toEntity(userId: String): TransactionEntity {
         return TransactionEntity(
             id = id,
+            userId = userId,
             accountId = accountId,
             txnDate = activityDate,
             valueDate = valueDate,
@@ -109,13 +124,16 @@ class TransactionRepositoryImpl @Inject constructor(
     
     // Category methods
     override fun getAllCategories(): Flow<List<Category>> {
-        return categoryDao.getAllCategories().map { entities -> 
-            entities.map { it.toDomain() } 
+        return authRepository.currentUserId.flatMapLatest { userId ->
+            categoryDao.getAllCategories(userId).map { entities -> 
+                entities.map { it.toDomain() } 
+            }
         }
     }
 
     override suspend fun insertCategory(category: Category): Long {
-        return categoryDao.insertCategory(category.toEntity())
+        val userId = authRepository.currentUserId.first()
+        return categoryDao.insertCategory(category.toEntity(userId))
     }
     
     override suspend fun incrementCategoryUsage(categoryId: Long) {
@@ -123,15 +141,16 @@ class TransactionRepositoryImpl @Inject constructor(
     }
     
     override suspend fun mergeCategories(sourceCategoryId: Long, targetCategoryId: Long) {
+        val userId = authRepository.currentUserId.first()
         // Update all transactions to use target category
-        transactionDao.updateTransactionsCategory(sourceCategoryId, targetCategoryId)
+        transactionDao.updateTransactionsCategory(sourceCategoryId, targetCategoryId, userId)
         
         // Update learning rules
-        learningRuleDao.updateRulesCategory(sourceCategoryId, targetCategoryId)
+        learningRuleDao.updateRulesCategory(sourceCategoryId, targetCategoryId, userId)
         
         // Add source usage count to target
-        val sourceCategory = categoryDao.getCategoryById(sourceCategoryId)
-        val targetCategory = categoryDao.getCategoryById(targetCategoryId)
+        val sourceCategory = categoryDao.getCategoryById(sourceCategoryId, userId)
+        val targetCategory = categoryDao.getCategoryById(targetCategoryId, userId)
         if (sourceCategory != null && targetCategory != null) {
             categoryDao.insertCategory(
                 targetCategory.copy(usageCount = targetCategory.usageCount + sourceCategory.usageCount)
@@ -140,34 +159,42 @@ class TransactionRepositoryImpl @Inject constructor(
     }
     
     override suspend fun uncategorizeActivities(categoryId: Long) {
+        val userId = authRepository.currentUserId.first()
         // Move to uncategorized (ID 0 or null)
-        transactionDao.updateTransactionsCategory(categoryId, 0L)
+        transactionDao.updateTransactionsCategory(categoryId, 0L, userId)
     }
     
     override suspend fun deleteCategory(categoryId: Long) {
-        categoryDao.deleteCategory(categoryId)
+        val userId = authRepository.currentUserId.first()
+        categoryDao.deleteCategory(categoryId, userId)
     }
     
     override suspend fun updateCategory(category: Category) {
-        categoryDao.insertCategory(category.toEntity())
+        val userId = authRepository.currentUserId.first()
+        categoryDao.insertCategory(category.toEntity(userId))
     }
     
     // Learning rule methods
     override suspend fun insertLearningRule(rule: CategoryLearningRule) {
-        learningRuleDao.insertRule(rule.toEntity())
+        val userId = authRepository.currentUserId.first()
+        learningRuleDao.insertRule(rule.toEntity(userId))
     }
     
     override suspend fun updateLearningRule(rule: CategoryLearningRule) {
-        learningRuleDao.updateRule(rule.toEntity())
+        val userId = authRepository.currentUserId.first()
+        learningRuleDao.updateRule(rule.toEntity(userId))
     }
     
     override suspend fun findLearningRule(pattern: String): CategoryLearningRule? {
-        return learningRuleDao.findRuleByMerchant(pattern)?.toDomain()
+        val userId = authRepository.currentUserId.first()
+        return learningRuleDao.findRuleByMerchant(pattern, userId)?.toDomain()
     }
     
     override suspend fun getAllLearningRules(): Flow<List<CategoryLearningRule>> {
-        return learningRuleDao.getAllRules().map { entities ->
-            entities.map { it.toDomain() }
+        return authRepository.currentUserId.flatMapLatest { userId ->
+            learningRuleDao.getAllRules(userId).map { entities ->
+                entities.map { it.toDomain() }
+            }
         }
     }
     
@@ -205,10 +232,11 @@ class TransactionRepositoryImpl @Inject constructor(
     
     // Daily Pulse calculation methods
     override suspend fun getMonthlyIncome(): Double {
+        val userId = authRepository.currentUserId.first()
         val startOfMonth = LocalDate.now().withDayOfMonth(1)
         val endOfMonth = LocalDate.now().withDayOfMonth(LocalDate.now().lengthOfMonth())
         
-        return transactionDao.getTransactionsInPeriod(startOfMonth, endOfMonth)
+        return transactionDao.getTransactionsInPeriod(startOfMonth, endOfMonth, userId)
             .first()
             .filter { it.direction == ActivityType.INCOME }
             .sumOf { it.amount }
@@ -220,37 +248,44 @@ class TransactionRepositoryImpl @Inject constructor(
     }
     
     override suspend fun getTodayExpenses(): Double {
+        val userId = authRepository.currentUserId.first()
         val today = LocalDate.now()
         
-        return transactionDao.getTransactionsInPeriod(today, today)
+        return transactionDao.getTransactionsInPeriod(today, today, userId)
             .first()
             .filter { it.direction == ActivityType.EXPENSE }
             .sumOf { it.amount }
     }
     
     override suspend fun getRecentTransactions(limit: Int): Flow<List<Activity>> {
-        return transactionDao.getRecentTransactions(limit).map { entities ->
-            entities.map { it.toDomain() }
+        return authRepository.currentUserId.flatMapLatest { userId ->
+            transactionDao.getRecentTransactions(limit, userId).map { entities ->
+                entities.map { it.toDomain() }
+            }
         }
     }
     
     // Transaction deletion
     override suspend fun deleteTransaction(activityId: Long) {
-        transactionDao.deleteTransaction(activityId)
+        val userId = authRepository.currentUserId.first()
+        transactionDao.deleteTransaction(activityId, userId)
     }
     
     // Performance optimization methods
     override suspend fun getAllTransactionsForDeduplication(accountId: Long): List<Activity> {
-        return transactionDao.getAllTransactionsSync(accountId).map { it.toDomain() }
+        val userId = authRepository.currentUserId.first()
+        return transactionDao.getAllTransactionsSync(accountId, userId).map { it.toDomain() }
     }
     
     override suspend fun calculateAccountBalance(accountId: Long, initialBalance: Double): Double {
-        return transactionDao.calculateBalance(accountId, initialBalance)
+        val userId = authRepository.currentUserId.first()
+        return transactionDao.calculateBalance(accountId, initialBalance, userId)
     }
     
     override suspend fun getLatestTransactionBalance(accountId: Long): Double? {
+        val userId = authRepository.currentUserId.first()
         // Get the most recent transaction that has a balance recorded
-        val latestTransaction = transactionDao.getLatestTransactionWithBalance(accountId)
+        val latestTransaction = transactionDao.getLatestTransactionWithBalance(accountId, userId)
         return latestTransaction?.balanceAfterTxn?.takeIf { it > 0.0 }
     }
     
@@ -269,9 +304,10 @@ class TransactionRepositoryImpl @Inject constructor(
         )
     }
     
-    private fun Category.toEntity(): CategoryEntity {
+    private fun Category.toEntity(userId: String?): CategoryEntity {
         return CategoryEntity(
             id = id,
+            userId = userId,
             name = name,
             type = type,
             icon = icon,
@@ -295,9 +331,10 @@ class TransactionRepositoryImpl @Inject constructor(
         )
     }
     
-    private fun CategoryLearningRule.toEntity(): LearningRuleEntity {
+    private fun CategoryLearningRule.toEntity(userId: String): LearningRuleEntity {
         return LearningRuleEntity(
             id = id,
+            userId = userId,
             merchantPattern = descriptionPattern,
             categoryId = categoryId,
             confidenceScore = confidenceScore,

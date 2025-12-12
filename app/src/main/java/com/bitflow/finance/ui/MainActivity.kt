@@ -35,27 +35,44 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.bitflow.finance.domain.repository.AuthRepository
+import com.bitflow.finance.ui.screens.login.LoginScreen
+
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
+    
+    @Inject
+    lateinit var authRepository: AuthRepository
 
-    private var isAuthenticated by mutableStateOf(false)
+    private var isAuthenticated by mutableStateOf(false) // Biometric auth state
+    private var isUserLoggedIn by mutableStateOf(false) // Session auth state
+    private var isBitflowAdmin by mutableStateOf(false)
     private var isBiometricEnabled by mutableStateOf(false)
-    private var isOnboardingCompleted by mutableStateOf(false)
     private var isLoading by mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Observe Auth State
         lifecycleScope.launch {
-            isOnboardingCompleted = settingsRepository.isOnboardingCompleted.first()
+            authRepository.currentUser.collect { user ->
+                isUserLoggedIn = user != null
+                if (!isUserLoggedIn) {
+                    isAuthenticated = false
+                }
+            }
+        }
+
+        lifecycleScope.launch {
             isBiometricEnabled = settingsRepository.isBiometricEnabled.first()
+            isBitflowAdmin = authRepository.isBitflowAdmin.first()
             
-            if (!isOnboardingCompleted) {
-                // Skip auth if onboarding not done
-                isAuthenticated = true
+            if (!isUserLoggedIn) {
+                // Need to login first
+                isAuthenticated = false
                 isLoading = false
             } else if (!isBiometricEnabled) {
                 isAuthenticated = true
@@ -74,14 +91,19 @@ class MainActivity : FragmentActivity() {
                 ) {
                     if (isLoading) {
                         // Show splash or loading
-                    } else if (!isOnboardingCompleted) {
-                        com.bitflow.finance.ui.screens.onboarding.OnboardingScreen(
-                            onComplete = {
-                                isOnboardingCompleted = true
+                    } else if (!isUserLoggedIn) {
+                        LoginScreen(
+                            onLoginSuccess = {
+                                lifecycleScope.launch {
+                                    isUserLoggedIn = true
+                                    isBitflowAdmin = authRepository.isBitflowAdmin.first()
+                                    // If biometrics enabled, we might want to prompt, but usually login is enough for this session
+                                    isAuthenticated = true 
+                                }
                             }
                         )
                     } else if (isAuthenticated) {
-                        FinanceAppNavigation()
+                        FinanceAppNavigation(isBitflowAdmin = isBitflowAdmin)
                     } else {
                         LockScreen(onUnlockClick = { showBiometricPrompt() })
                     }

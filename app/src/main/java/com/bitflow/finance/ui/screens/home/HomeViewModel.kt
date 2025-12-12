@@ -31,8 +31,16 @@ class HomeViewModel @Inject constructor(
         transactionRepository.getAllTransactions(),
         settingsRepository.currencySymbol,
         settingsRepository.isPrivacyModeEnabled,
+        settingsRepository.userName,
         _selectedAccountId
-    ) { accounts, transactions, currency, isPrivacyMode, selectedAccountId ->
+    ) { flows: Array<Any?> ->
+        val accounts = flows[0] as List<Account>
+        val transactions = flows[1] as List<Transaction>
+        val currency = flows[2] as String
+        val isPrivacyMode = flows[3] as Boolean
+        val userName = flows[4] as String
+        val selectedAccountId = flows[5] as Long?
+        
         println("[HomeViewModel] Accounts count: ${accounts.size}")
         println("[HomeViewModel] Transactions count: ${transactions.size}")
         
@@ -48,6 +56,7 @@ class HomeViewModel @Inject constructor(
             totalNetWorth = totalBalance,
             currencySymbol = currency,
             isPrivacyMode = isPrivacyMode,
+            userName = userName,
             selectedAccountId = selectedAccountId
         )
     }.stateIn(
@@ -74,5 +83,6 @@ data class HomeUiState(
     val totalNetWorth: Double = 0.0,
     val currencySymbol: String = "₹",
     val isPrivacyMode: Boolean = false,
+    val userName: String = "",
     val selectedAccountId: Long? = null
 )

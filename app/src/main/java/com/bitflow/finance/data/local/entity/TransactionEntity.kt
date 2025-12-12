@@ -10,13 +10,14 @@ import java.time.LocalDateTime
 @Entity(
     tableName = "transactions",
     indices = [
-        Index(value = ["accountId", "txnDate"], name = "idx_account_date"),
-        Index(value = ["txnDate"], name = "idx_txn_date"),
+        Index(value = ["userId", "accountId", "txnDate"], name = "idx_user_account_date"),
+        Index(value = ["userId", "txnDate"], name = "idx_user_date"),
         Index(value = ["accountId", "txnDate", "amount", "description"], name = "idx_dedup")
     ]
 )
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val userId: String, // Owner of this transaction
     val accountId: Long,
     val txnDate: LocalDate,
     val valueDate: LocalDate?,

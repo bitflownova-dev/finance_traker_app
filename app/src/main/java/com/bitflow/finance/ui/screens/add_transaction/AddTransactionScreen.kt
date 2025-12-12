@@ -1,5 +1,8 @@
 package com.bitflow.finance.ui.screens.add_transaction
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,9 +15,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Backspace
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,10 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.bitflow.finance.core.theme.ElectricCyan
-import com.bitflow.finance.core.theme.MoneyIn
-import com.bitflow.finance.core.theme.MoneyOut
-import com.bitflow.finance.core.theme.Zinc800
+import com.bitflow.finance.domain.model.Account
 import com.bitflow.finance.domain.model.ActivityType
 import com.bitflow.finance.domain.model.Category
 
@@ -42,6 +40,24 @@ fun AddTransactionScreen(
     viewModel: AddTransactionViewModel = hiltViewModel(),
     onBackClick: () -> Unit,
     onSuccess: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            // Photo saved to URI
+        }
+    }
+    
+    // Gallery picker
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.setBillPhoto(it.toString()) }
+    }
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -61,6 +77,16 @@ fun AddTransactionScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 },
+                actions = {
+                    // Bill Photo Button
+                    IconButton(onClick = { galleryLauncher.launch("image/*") }) {
+                        Icon(
+                            imageVector = if (uiState.billPhotoUri != null) Icons.Default.Photo else Icons.Default.AddAPhoto,
+                            contentDescription = "Add Bill Photo",
+                            tint = if (uiState.billPhotoUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
@@ -72,8 +98,29 @@ fun AddTransactionScreen(
                 .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. Top Section: Amount & Toggle
+            // 1. Top Section: Amount & Account Selection
             Spacer(modifier = Modifier.height(16.dp))
+            
+            // Account Selector
+            uiState.selectedAccount?.let { account ->
+                OutlinedButton(
+                    onClick = { /* TODO: Show account selection bottom sheet */ },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccountBalance,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(account.name, style = MaterialTheme.typography.titleSmall)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                }
+            }
             
             // Amount Display
             Text(
@@ -92,21 +139,21 @@ fun AddTransactionScreen(
                 modifier = Modifier
                     .height(48.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Zinc800)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TypeToggleOption(
                     text = "Expense",
                     isSelected = uiState.type == ActivityType.EXPENSE,
-                    selectedColor = MoneyOut,
+                    selectedColor = Color(0xFFEF4444), // ErrorRed
                     onClick = { viewModel.setType(ActivityType.EXPENSE) },
                     modifier = Modifier.weight(1f)
                 )
                 TypeToggleOption(
                     text = "Income",
                     isSelected = uiState.type == ActivityType.INCOME,
-                    selectedColor = MoneyIn,
+                    selectedColor = Color(0xFF10B981), // SuccessGreen
                     onClick = { viewModel.setType(ActivityType.INCOME) },
                     modifier = Modifier.weight(1f)
                 )
@@ -189,7 +236,7 @@ fun TypeToggleOption(
             text = text,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
+            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -210,10 +257,10 @@ fun CategoryGridItem(
             modifier = Modifier
                 .size(64.dp)
                 .clip(CircleShape)
-                .background(Zinc800)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(
                     width = if (isSelected) 2.dp else 0.dp,
-                    color = if (isSelected) ElectricCyan else Color.Transparent,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
                     shape = CircleShape
                 )
                 .clickable(onClick = onClick),
@@ -228,7 +275,8 @@ fun CategoryGridItem(
         Text(
             text = category.name,
             style = MaterialTheme.typography.bodySmall,
-            color = if (isSelected) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
             textAlign = TextAlign.Center
         )
@@ -287,14 +335,13 @@ fun NumericKeypad(
                 .height(64.dp),
             shape = RoundedCornerShape(32.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = ElectricCyan,
-                disabledContainerColor = Zinc800
+                containerColor = MaterialTheme.colorScheme.primary,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
             )
         ) {
             Icon(
                 imageVector = Icons.Default.Check,
                 contentDescription = "Done",
-                tint = Color.Black,
                 modifier = Modifier.size(32.dp)
             )
         }

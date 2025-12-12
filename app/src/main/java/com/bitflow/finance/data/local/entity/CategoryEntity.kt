@@ -7,6 +7,7 @@ import com.bitflow.finance.domain.model.CategoryType
 @Entity(tableName = "categories")
 data class CategoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val userId: String?, // Null for system categories, userId for user categories
     val name: String,
     val type: CategoryType,
     val icon: String,

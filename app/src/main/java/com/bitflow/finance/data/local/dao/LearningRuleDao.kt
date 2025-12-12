@@ -14,14 +14,14 @@ interface LearningRuleDao {
     /**
      * Find existing rule for a merchant pattern
      */
-    @Query("SELECT * FROM learning_rules WHERE merchantPattern = :merchantPattern LIMIT 1")
-    suspend fun findRuleByMerchant(merchantPattern: String): LearningRuleEntity?
+    @Query("SELECT * FROM learning_rules WHERE userId = :userId AND merchantPattern = :merchantPattern LIMIT 1")
+    suspend fun findRuleByMerchant(merchantPattern: String, userId: String): LearningRuleEntity?
     
     /**
      * Get all learning rules sorted by confidence and usage
      */
-    @Query("SELECT * FROM learning_rules ORDER BY confidenceScore DESC, usageCount DESC")
-    fun getAllRules(): Flow<List<LearningRuleEntity>>
+    @Query("SELECT * FROM learning_rules WHERE userId = :userId ORDER BY confidenceScore DESC, usageCount DESC")
+    fun getAllRules(userId: String): Flow<List<LearningRuleEntity>>
     
     /**
      * Insert or update a learning rule
@@ -38,18 +38,18 @@ interface LearningRuleDao {
     /**
      * Delete rules associated with a category (when category is deleted)
      */
-    @Query("DELETE FROM learning_rules WHERE categoryId = :categoryId")
-    suspend fun deleteRulesForCategory(categoryId: Long)
+    @Query("DELETE FROM learning_rules WHERE userId = :userId AND categoryId = :categoryId")
+    suspend fun deleteRulesForCategory(categoryId: Long, userId: String)
     
     /**
      * Update rules to new category (when merging categories)
      */
-    @Query("UPDATE learning_rules SET categoryId = :newCategoryId WHERE categoryId = :oldCategoryId")
-    suspend fun updateRulesCategory(oldCategoryId: Long, newCategoryId: Long)
+    @Query("UPDATE learning_rules SET categoryId = :newCategoryId WHERE userId = :userId AND categoryId = :oldCategoryId")
+    suspend fun updateRulesCategory(oldCategoryId: Long, newCategoryId: Long, userId: String)
     
     /**
      * Clear all learning data (reset feature)
      */
-    @Query("DELETE FROM learning_rules")
-    suspend fun clearAllRules()
+    @Query("DELETE FROM learning_rules WHERE userId = :userId")
+    suspend fun clearAllRules(userId: String)
 }

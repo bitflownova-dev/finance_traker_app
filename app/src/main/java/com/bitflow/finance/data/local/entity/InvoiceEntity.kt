@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class InvoiceEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val userId: String, // Owner of this invoice
     val invoiceNumber: String,
     val clientName: String,
     val clientAddress: String = "",

@@ -24,13 +24,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.bitflow.finance.core.theme.ElectricCyan
-import com.bitflow.finance.core.theme.ElectricLime
-import com.bitflow.finance.core.theme.ElectricPurple
-import com.bitflow.finance.core.theme.ElectricSalmon
-import com.bitflow.finance.core.theme.ElectricYellow
-import com.bitflow.finance.core.theme.Zinc800
-import com.bitflow.finance.core.theme.Zinc900
 import com.bitflow.finance.ui.components.FilterChipsRow
 import com.bitflow.finance.ui.components.TimeFilter
 
@@ -43,7 +36,15 @@ fun AnalysisScreen(
     var selectedFilter by remember { mutableStateOf(TimeFilter.THIS_MONTH) }
 
     // Assign colors to breakdown items
-    val chartColors = listOf(ElectricCyan, ElectricLime, ElectricPurple, ElectricSalmon, ElectricYellow, Color.Magenta, Color.Cyan)
+    val chartColors = listOf(
+        Color(0xFF3B82F6), // PrimaryBlue
+        Color(0xFF14B8A6), // AccentTeal
+        Color(0xFF8B5CF6), // AccentPurple
+        Color(0xFFF59E0B), // AccentAmber
+        Color(0xFFEC4899), // AccentRose
+        Color(0xFF10B981), // SuccessGreen
+        Color(0xFF6366F1)  // Additional Indigo
+    )
     val coloredBreakdown = remember(uiState.categoryBreakdown) {
         uiState.categoryBreakdown.mapIndexed { index, item ->
             item.copy(color = chartColors[index % chartColors.size])
@@ -190,7 +191,7 @@ fun CategoryBreakdownItem(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Zinc900)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -199,7 +200,7 @@ fun CategoryBreakdownItem(
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(Zinc800),
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Text(text = item.icon, fontSize = 20.sp)
@@ -237,7 +238,7 @@ fun CategoryBreakdownItem(
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp)),
                 color = item.color,
-                trackColor = Zinc800,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
         }
         

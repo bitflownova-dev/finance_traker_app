@@ -7,6 +7,7 @@ import com.bitflow.finance.domain.model.AccountType
 @Entity(tableName = "accounts")
 data class AccountEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val userId: String, // Owner of this account
     val name: String,
     val type: AccountType,
     val color: Int,

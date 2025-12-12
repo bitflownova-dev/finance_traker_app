@@ -1,12 +1,14 @@
 package com.bitflow.finance.ui
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -14,6 +16,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -35,22 +39,33 @@ import com.bitflow.finance.ui.screens.transactions.TransactionsScreen
 import com.bitflow.finance.ui.screens.bitflow.BitflowScreen
 import com.bitflow.finance.ui.screens.bitflow.InvoiceRecordsScreen
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Receipt
 
 import com.bitflow.finance.ui.screens.invoice.InvoicePreviewScreen
 import com.bitflow.finance.ui.screens.profile.ProfileScreen
 import com.bitflow.finance.ui.screens.bitflow.BitflowInsightsScreen
 
 @Composable
-fun FinanceAppNavigation() {
+fun FinanceAppNavigation(isBitflowAdmin: Boolean) {
     val navController = rememberNavController()
 
-    val items = listOf(
-        Screen.Home,
-        Screen.Accounts,
-        Screen.Bitflow,
-        Screen.Insights,
-        Screen.Settings
-    )
+    val items = if (isBitflowAdmin) {
+        listOf(
+            Screen.Home,
+            Screen.Transactions,
+            Screen.Bitflow,
+            Screen.Insights,
+            Screen.Profile
+        )
+    } else {
+        listOf(
+            Screen.Home,
+            Screen.Transactions,
+            Screen.Insights,
+            Screen.Profile
+        )
+    }
 
     Scaffold(
         bottomBar = {
@@ -65,11 +80,27 @@ fun FinanceAppNavigation() {
                 currentRoute != "invoice" &&
                 currentRoute != "invoice_records" &&
                 currentRoute?.startsWith("transaction_detail") != true) {
-                NavigationBar {
+                NavigationBar(
+                    tonalElevation = 0.dp,
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
                     items.forEach { screen ->
                         NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = null) },
-                            label = { Text(screen.label) },
+                            icon = { 
+                                Icon(
+                                    imageVector = screen.icon,
+                                    contentDescription = screen.label,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            },
+                            label = { 
+                                Text(
+                                    text = screen.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
                                 navController.navigate(screen.route) {
@@ -79,7 +110,8 @@ fun FinanceAppNavigation() {
                                     launchSingleTop = true
                                     restoreState = true
                                 }
-                            }
+                            },
+                            alwaysShowLabel = true
                         )
                     }
                 }
@@ -97,35 +129,39 @@ fun FinanceAppNavigation() {
                     onTransactionClick = { activityId ->
                         navController.navigate("transaction_detail/$activityId")
                     },
-                    onImportClick = { navController.navigate("import") },
                     onAnalyticsClick = { navController.navigate(Screen.Insights.route) },
-                    onSeeAllTransactionsClick = { navController.navigate("transactions") },
-                    onProfileClick = { navController.navigate("profile") }
+                    onSeeAllTransactionsClick = { navController.navigate(Screen.Transactions.route) },
+                    onProfileClick = { navController.navigate(Screen.Profile.route) }
                 )
             }
-            composable("profile") {
+            composable(Screen.Profile.route) {
                 ProfileScreen(
                     onBackClick = { navController.popBackStack() },
                     onSettingsClick = { navController.navigate(Screen.Settings.route) },
                     onAccountsClick = { navController.navigate(Screen.Accounts.route) },
-                    onInsightsClick = { navController.navigate(Screen.Insights.route) }
+                    onInsightsClick = { navController.navigate(Screen.Insights.route) },
+                    onImportClick = { navController.navigate("import") }
                 )
             }
             composable(Screen.Accounts.route) {
                 AccountsScreen()
             }
-            composable(Screen.Bitflow.route) {
-                BitflowScreen(
-                    onInvoiceGeneratorClick = { navController.navigate("invoice") },
-                    onInvoiceRecordsClick = { navController.navigate("invoice_records") },
-                    onInsightsClick = { navController.navigate("bitflow_insights") }
-                )
+            
+            if (isBitflowAdmin) {
+                composable(Screen.Bitflow.route) {
+                    BitflowScreen(
+                        onInvoiceGeneratorClick = { navController.navigate("invoice") },
+                        onInvoiceRecordsClick = { navController.navigate("invoice_records") },
+                        onInsightsClick = { navController.navigate("bitflow_insights") }
+                    )
+                }
+                composable("bitflow_insights") {
+                    BitflowInsightsScreen(
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
             }
-            composable("bitflow_insights") {
-                BitflowInsightsScreen(
-                    onBackClick = { navController.popBackStack() }
-                )
-            }
+
             composable(Screen.Insights.route) {
                 AnalysisScreen()
             }
@@ -139,30 +175,34 @@ fun FinanceAppNavigation() {
                     onBackClick = { navController.popBackStack() }
                 )
             }
-            composable("invoice") {
-                InvoiceGeneratorScreen(
-                    onBackClick = { navController.popBackStack() }
-                )
+            
+            if (isBitflowAdmin) {
+                composable("invoice") {
+                    InvoiceGeneratorScreen(
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+                composable("invoice_records") {
+                    InvoiceRecordsScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onInvoiceClick = { invoiceId ->
+                            navController.navigate("invoice_preview/$invoiceId")
+                        }
+                    )
+                }
+                composable(
+                    route = "invoice_preview/{invoiceId}",
+                    arguments = listOf(navArgument("invoiceId") { type = NavType.LongType })
+                ) { backStackEntry ->
+                    val invoiceId = backStackEntry.arguments?.getLong("invoiceId") ?: 0L
+                    InvoicePreviewScreen(
+                        invoiceId = invoiceId,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
             }
-            composable("invoice_records") {
-                InvoiceRecordsScreen(
-                    onBackClick = { navController.popBackStack() },
-                    onInvoiceClick = { invoiceId ->
-                        navController.navigate("invoice_preview/$invoiceId")
-                    }
-                )
-            }
-            composable(
-                route = "invoice_preview/{invoiceId}",
-                arguments = listOf(navArgument("invoiceId") { type = NavType.LongType })
-            ) { backStackEntry ->
-                val invoiceId = backStackEntry.arguments?.getLong("invoiceId") ?: 0L
-                InvoicePreviewScreen(
-                    invoiceId = invoiceId,
-                    onBackClick = { navController.popBackStack() }
-                )
-            }
-            composable("transactions") {
+
+            composable(Screen.Transactions.route) {
                 TransactionsScreen(
                     onBackClick = { navController.popBackStack() },
                     onTransactionClick = { id -> navController.navigate("transaction_detail/$id") }
@@ -193,8 +233,10 @@ fun FinanceAppNavigation() {
 
 sealed class Screen(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     object Home : Screen("home", "Home", Icons.Default.Home)
-    object Accounts : Screen("accounts", "Accounts", Icons.Default.AccountBalance)
+    object Transactions : Screen("transactions", "Transactions", Icons.Default.Receipt)
     object Bitflow : Screen("bitflow", "Bitflow", Icons.Default.Star)
     object Insights : Screen("insights", "Insights", Icons.Default.Analytics)
+    object Profile : Screen("profile", "Profile", Icons.Default.Person)
+    object Accounts : Screen("accounts", "Accounts", Icons.Default.AccountBalance)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }

@@ -38,7 +38,15 @@ fun BitflowScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Bitflow Tools") }
+                title = { 
+                    Text(
+                        "Bitflow Tools",
+                        fontWeight = FontWeight.Bold
+                    ) 
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { paddingValues ->
@@ -46,16 +54,18 @@ fun BitflowScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(24.dp)
         ) {
             // Total Revenue Summary
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 24.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp)

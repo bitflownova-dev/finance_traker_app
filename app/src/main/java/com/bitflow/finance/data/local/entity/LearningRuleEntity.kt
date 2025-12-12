@@ -11,10 +11,11 @@ import java.time.LocalDateTime
  */
 @Entity(
     tableName = "learning_rules",
-    indices = [Index(value = ["merchantPattern"])]
+    indices = [Index(value = ["userId", "merchantPattern"])]
 )
 data class LearningRuleEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val userId: String, // Owner of this learning rule
     val merchantPattern: String, // Normalized merchant name
     val categoryId: Long,
     val confidenceScore: Float = 1.0f, // Increases with each confirmation

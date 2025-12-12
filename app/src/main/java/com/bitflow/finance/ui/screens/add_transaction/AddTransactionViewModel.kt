@@ -2,6 +2,7 @@ package com.bitflow.finance.ui.screens.add_transaction
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bitflow.finance.domain.model.Account
 import com.bitflow.finance.domain.model.Activity
 import com.bitflow.finance.domain.model.ActivityType
 import com.bitflow.finance.domain.model.Category
@@ -24,6 +25,7 @@ class AddTransactionViewModel @Inject constructor(
 
     init {
         loadCategories()
+        loadAccounts()
     }
 
     private fun loadCategories() {
@@ -31,6 +33,17 @@ class AddTransactionViewModel @Inject constructor(
             transactionRepository.getAllCategories().collect { categories ->
                 _uiState.value = _uiState.value.copy(
                     categories = categories.filter { !it.isHidden }
+                )
+            }
+        }
+    }
+
+    private fun loadAccounts() {
+        viewModelScope.launch {
+            transactionRepository.getAllAccounts().collect { accounts ->
+                _uiState.value = _uiState.value.copy(
+                    accounts = accounts,
+                    selectedAccount = accounts.firstOrNull()
                 )
             }
         }
@@ -46,6 +59,10 @@ class AddTransactionViewModel @Inject constructor(
 
     fun selectCategory(category: Category) {
         _uiState.value = _uiState.value.copy(selectedCategory = category)
+    }
+
+    fun selectAccount(account: Account) {
+        _uiState.value = _uiState.value.copy(selectedAccount = account)
     }
 
     fun setDescription(description: String) {
@@ -64,9 +81,10 @@ class AddTransactionViewModel @Inject constructor(
         viewModelScope.launch {
             val state = _uiState.value
             val amountValue = state.amount.toDoubleOrNull() ?: return@launch
+            val accountId = state.selectedAccount?.id ?: return@launch
 
             val activity = Activity(
-                accountId = 1L, // TODO: Allow user to select account
+                accountId = accountId,
                 activityDate = LocalDate.now(),
                 valueDate = LocalDate.now(),
                 description = state.description,
@@ -91,8 +109,12 @@ data class AddTransactionUiState(
     val amount: String = "",
     val selectedCategory: Category? = null,
     val categories: List<Category> = emptyList(),
+    val selectedAccount: Account? = null,
+    val accounts: List<Account> = emptyList(),
     val description: String = "",
     val notes: String = "",
     val billPhotoUri: String? = null,
-    val saved: Boolean = false
+    val saved: Boolean = false,
+    val showAccountSheet: Boolean = false,
+    val showBillPhotoOptions: Boolean = false
 )

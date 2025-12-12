@@ -8,6 +8,9 @@ import com.bitflow.finance.data.local.dao.CategoryDao
 import com.bitflow.finance.data.local.dao.InvoiceDao
 import com.bitflow.finance.data.local.dao.LearningRuleDao
 import com.bitflow.finance.data.local.dao.TransactionDao
+import com.bitflow.finance.data.local.dao.UserAccountDao
+import com.bitflow.finance.data.local.dao.FriendDao
+import com.bitflow.finance.data.local.dao.SplitDao
 import com.bitflow.finance.data.parser.UniversalStatementParser
 import com.bitflow.finance.data.parser.StatementParser
 import dagger.Module
@@ -35,8 +38,18 @@ object AppModule {
             AppDatabase.MIGRATION_3_4,
             AppDatabase.MIGRATION_4_5,
             AppDatabase.MIGRATION_5_6,
-            AppDatabase.MIGRATION_6_7
+            AppDatabase.MIGRATION_6_7,
+            AppDatabase.MIGRATION_7_8,
+            AppDatabase.MIGRATION_8_9,
+            AppDatabase.MIGRATION_9_10
         )
+        .addCallback(object : androidx.room.RoomDatabase.Callback() {
+            override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                super.onCreate(db)
+                // Insert built-in categories on fresh database creation
+                AppDatabase.insertBuiltInCategories(db)
+            }
+        })
         .fallbackToDestructiveMigration()
         .build()
     }
@@ -55,6 +68,15 @@ object AppModule {
 
     @Provides
     fun provideInvoiceDao(database: AppDatabase): InvoiceDao = database.invoiceDao()
+
+    @Provides
+    fun provideUserAccountDao(database: AppDatabase): UserAccountDao = database.userAccountDao()
+
+    @Provides
+    fun provideFriendDao(database: AppDatabase): FriendDao = database.friendDao()
+
+    @Provides
+    fun provideSplitDao(database: AppDatabase): SplitDao = database.splitDao()
 
     @Provides
     fun provideStatementParser(@ApplicationContext context: Context): StatementParser {

@@ -9,11 +9,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CategoryDao {
-    @Query("SELECT * FROM categories WHERE isHidden = 0 ORDER BY usageCount DESC, name ASC")
-    fun getAllCategories(): Flow<List<CategoryEntity>>
+    @Query("SELECT * FROM categories WHERE (userId IS NULL OR userId = :userId) AND isHidden = 0 ORDER BY usageCount DESC, name ASC")
+    fun getAllCategories(userId: String): Flow<List<CategoryEntity>>
     
-    @Query("SELECT * FROM categories WHERE isHidden = 0 ORDER BY usageCount DESC LIMIT :limit")
-    fun getTopCategories(limit: Int = 8): Flow<List<CategoryEntity>>
+    @Query("SELECT * FROM categories WHERE (userId IS NULL OR userId = :userId) AND isHidden = 0 ORDER BY usageCount DESC LIMIT :limit")
+    fun getTopCategories(limit: Int = 8, userId: String): Flow<List<CategoryEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategory(category: CategoryEntity): Long
@@ -24,12 +24,12 @@ interface CategoryDao {
     @Query("UPDATE categories SET usageCount = usageCount + 1 WHERE id = :categoryId")
     suspend fun incrementUsageCount(categoryId: Long)
     
-    @Query("UPDATE categories SET isHidden = :isHidden WHERE id = :categoryId")
-    suspend fun updateVisibility(categoryId: Long, isHidden: Boolean)
+    @Query("UPDATE categories SET isHidden = :isHidden WHERE id = :categoryId AND (userId IS NULL OR userId = :userId)")
+    suspend fun updateVisibility(categoryId: Long, isHidden: Boolean, userId: String)
     
-    @Query("DELETE FROM categories WHERE id = :categoryId AND isUserDeletable = 1")
-    suspend fun deleteCategory(categoryId: Long)
+    @Query("DELETE FROM categories WHERE id = :categoryId AND userId = :userId AND isUserDeletable = 1")
+    suspend fun deleteCategory(categoryId: Long, userId: String)
     
-    @Query("SELECT * FROM categories WHERE id = :categoryId")
-    suspend fun getCategoryById(categoryId: Long): CategoryEntity?
+    @Query("SELECT * FROM categories WHERE id = :categoryId AND (userId IS NULL OR userId = :userId)")
+    suspend fun getCategoryById(categoryId: Long, userId: String): CategoryEntity?
 }

@@ -31,6 +31,7 @@ class InvoiceViewModel @Inject constructor(
             val itemsJson = gson.toJson(currentState.items)
             
             val invoiceEntity = InvoiceEntity(
+                userId = "", // Will be set by repository
                 invoiceNumber = currentState.invoiceNumber,
                 clientName = currentState.clientName,
                 clientAddress = currentState.clientAddress,

@@ -10,11 +10,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AccountDao {
-    @Query("SELECT * FROM accounts")
-    fun getAllAccounts(): Flow<List<AccountEntity>>
+    @Query("SELECT * FROM accounts WHERE userId = :userId")
+    fun getAllAccounts(userId: String): Flow<List<AccountEntity>>
 
-    @Query("SELECT * FROM accounts WHERE id = :id")
-    suspend fun getAccountById(id: Long): AccountEntity?
+    @Query("SELECT * FROM accounts WHERE id = :id AND userId = :userId")
+    suspend fun getAccountById(id: Long, userId: String): AccountEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAccount(account: AccountEntity): Long
@@ -22,6 +22,6 @@ interface AccountDao {
     @Update
     suspend fun updateAccount(account: AccountEntity)
     
-    @Query("UPDATE accounts SET currentBalance = :newBalance WHERE id = :accountId")
-    suspend fun updateBalance(accountId: Long, newBalance: Double)
+    @Query("UPDATE accounts SET currentBalance = :newBalance WHERE id = :accountId AND userId = :userId")
+    suspend fun updateBalance(accountId: Long, newBalance: Double, userId: String)
 }

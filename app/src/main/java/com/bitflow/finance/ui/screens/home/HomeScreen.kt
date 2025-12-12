@@ -40,7 +40,6 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
-    onImportClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
     onTransactionClick: (Long) -> Unit,
     onAddTransactionClick: () -> Unit,
@@ -49,74 +48,33 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val greeting = getGreeting()
+    val userName = uiState.userName
 
     Scaffold(
         topBar = {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp
+                color = MaterialTheme.colorScheme.background,
+                tonalElevation = 0.dp
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = greeting,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Your Finances",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = onProfileClick,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = "Profile",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = greeting,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (userName.isNotBlank()) userName else "Your Finances",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = (-0.5).sp
+                    )
                 }
-            }
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAddTransactionClick,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
-            ) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = "Add Transaction",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Transaction", style = MaterialTheme.typography.labelLarge)
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -125,8 +83,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             // Net Worth Card
             item {
@@ -142,20 +100,19 @@ fun HomeScreen(
             item {
                 QuickActions(
                     onAnalyticsClick = onAnalyticsClick,
-                    onImportClick = onImportClick
+                    onAddTransactionClick = onAddTransactionClick
                 )
             }
 
             // Accounts Section
             if (uiState.accounts.isNotEmpty()) {
                 item {
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         SectionHeader(
                             title = "Accounts",
                             subtitle = "${uiState.accounts.size} active",
                             onSeeAllClick = null
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
                         AccountsCarousel(
                             accounts = uiState.accounts,
                             currencySymbol = uiState.currencySymbol,
@@ -190,8 +147,8 @@ fun HomeScreen(
                     EmptyState(
                         message = "No transactions yet",
                         icon = Icons.Outlined.Receipt,
-                        actionText = "Import Statement",
-                        onActionClick = onImportClick
+                        actionText = "Add Transaction",
+                        onActionClick = onAddTransactionClick
                     )
                 }
             }
@@ -225,24 +182,32 @@ private fun SectionHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                letterSpacing = (-0.3).sp
             )
             if (subtitle != null) {
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
         if (onSeeAllClick != null) {
-            TextButton(onClick = onSeeAllClick) {
-                Text("See All")
+            TextButton(
+                onClick = onSeeAllClick,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    "See All",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
@@ -258,24 +223,35 @@ private fun EmptyState(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(vertical = 60.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Text(
             text = message,
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium
         )
         if (actionText != null && onActionClick != null) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onActionClick) {
+            Button(
+                onClick = onActionClick,
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
                 Text(actionText)
             }
         }
@@ -292,49 +268,37 @@ fun NetWorthCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
-            .shadow(8.dp, RoundedCornerShape(28.dp)),
-        shape = RoundedCornerShape(28.dp),
+            .height(180.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent
-        )
+            containerColor = if (isAccountSelected) 
+                MaterialTheme.colorScheme.secondaryContainer
+            else 
+                MaterialTheme.colorScheme.primaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.linearGradient(
-                        colors = if (isAccountSelected) listOf(
-                            Color(0xFF4CAF50),
-                            Color(0xFF2E7D32),
-                            Color(0xFF1B5E20)
-                        ) else listOf(
-                            Color(0xFF667EEA),
-                            Color(0xFF764BA2),
-                            Color(0xFFF093FB)
-                        ),
-                        start = Offset(0f, 0f),
-                        end = Offset(1000f, 1000f)
-                    )
-                )
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Decorative circles
+            // Subtle decorative elements
             Box(
                 modifier = Modifier
-                    .size(150.dp)
-                    .offset(x = (-30).dp, y = (-30).dp)
+                    .size(120.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 40.dp, y = (-40).dp)
                     .background(
-                        Color.White.copy(alpha = 0.1f),
+                        Color.White.copy(alpha = 0.05f),
                         CircleShape
                     )
             )
             Box(
                 modifier = Modifier
-                    .size(100.dp)
-                    .align(Alignment.BottomEnd)
-                    .offset(x = 30.dp, y = 30.dp)
+                    .size(80.dp)
+                    .align(Alignment.BottomStart)
+                    .offset(x = (-20).dp, y = 20.dp)
                     .background(
-                        Color.White.copy(alpha = 0.1f),
+                        Color.White.copy(alpha = 0.05f),
                         CircleShape
                     )
             )
@@ -342,50 +306,47 @@ fun NetWorthCard(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(28.dp),
+                    .padding(24.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.AccountBalance,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = if (isAccountSelected) "Account Balance" else "Total Balance",
-                                color = Color.White.copy(alpha = 0.9f),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AccountBalance,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = if (isAccountSelected) "Account Balance" else "Total Balance",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
                 
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = if (isPrivacyMode) "$currencySymbol ••••••" else formatCurrency(netWorth, currencySymbol),
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontSize = 40.sp,
-                            fontWeight = FontWeight.Bold
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.5).sp
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Updated ${getCurrentDate()}",
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -411,24 +372,22 @@ private fun getCurrentDate(): String {
 @Composable
 fun QuickActions(
     onAnalyticsClick: () -> Unit,
-    onImportClick: () -> Unit
+    onAddTransactionClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         QuickActionCard(
             icon = Icons.Outlined.TrendingUp,
             label = "Analytics",
-            color = Color(0xFF4CAF50),
             onClick = onAnalyticsClick,
             modifier = Modifier.weight(1f)
         )
         QuickActionCard(
-            icon = Icons.Outlined.Upload,
-            label = "Import",
-            color = Color(0xFF2196F3),
-            onClick = onImportClick,
+            icon = Icons.Filled.Add,
+            label = "Add Transaction",
+            onClick = onAddTransactionClick,
             modifier = Modifier.weight(1f)
         )
     }
@@ -439,23 +398,22 @@ fun QuickActions(
 fun QuickActionCard(
     icon: ImageVector,
     label: String,
-    color: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier.height(100.dp),
+        modifier = modifier.height(110.dp),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(20.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -463,15 +421,15 @@ fun QuickActionCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(color.copy(alpha = 0.15f)),
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
-                        tint = color,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -479,7 +437,8 @@ fun QuickActionCard(
                     text = label,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 20.sp
                 )
             }
         }
@@ -529,18 +488,18 @@ fun AccountCard(
             .then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp)) else Modifier),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 8.dp else 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Color accent bar
+            // Color accent bar (smaller, more subtle)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
+                    .height(3.dp)
                     .background(accountColor)
             )
             
@@ -567,27 +526,26 @@ fun AccountCard(
                     }
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .background(accountColor.copy(alpha = 0.15f)),
+                            .background(accountColor.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.AccountBalanceWallet,
                             contentDescription = null,
                             tint = accountColor,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
                 
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = "Balance",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = if (isPrivacyMode) "$currencySymbol ••••" else formatCurrency(account.currentBalance, currencySymbol),
                         style = MaterialTheme.typography.titleLarge,
@@ -602,12 +560,12 @@ fun AccountCard(
 
 private fun getAccountColor(accountName: String): Color {
     val colors = listOf(
-        Color(0xFF4CAF50),
-        Color(0xFF2196F3),
-        Color(0xFFFF9800),
-        Color(0xFF9C27B0),
-        Color(0xFFF44336),
-        Color(0xFF00BCD4)
+        Color(0xFF3B82F6), // PrimaryBlue
+        Color(0xFF14B8A6), // AccentTeal
+        Color(0xFF8B5CF6), // AccentPurple
+        Color(0xFFF59E0B), // AccentAmber
+        Color(0xFFEC4899), // AccentRose
+        Color(0xFF10B981)  // SuccessGreen
     )
     return colors[accountName.hashCode().mod(colors.size)]
 }
@@ -621,16 +579,16 @@ fun TransactionItem(
     onClick: () -> Unit
 ) {
     val isExpense = transaction.type == com.bitflow.finance.domain.model.ActivityType.EXPENSE
-    val transactionColor = if (isExpense) Color(0xFFF44336) else Color(0xFF4CAF50)
+    val transactionColor = if (isExpense) Color(0xFFEF4444) else Color(0xFF10B981) // ErrorRed and SuccessGreen from new palette
     
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -642,7 +600,7 @@ fun TransactionItem(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(transactionColor.copy(alpha = 0.15f)),
+                    .background(transactionColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -659,7 +617,7 @@ fun TransactionItem(
                 Text(
                     text = transaction.description,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface

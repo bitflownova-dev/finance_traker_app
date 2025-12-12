@@ -125,12 +125,11 @@ fun SettingsScreen(
                 title = { 
                     Text(
                         "Settings",
-                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     ) 
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
@@ -140,7 +139,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .padding(24.dp)
         ) {
             SettingsSection(title = "General") {
                 SettingsItem(

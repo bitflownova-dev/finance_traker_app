@@ -40,12 +40,11 @@ fun AccountsScreen(
                 title = { 
                     Text(
                         "Accounts",
-                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     ) 
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
@@ -126,11 +125,11 @@ fun AccountItem(account: Account) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -142,7 +141,7 @@ fun AccountItem(account: Account) {
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(accountColor.copy(alpha = 0.15f)),
+                    .background(accountColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -192,12 +191,12 @@ private fun formatCurrency(amount: Double, symbol: String): String {
 
 private fun getAccountColor(accountName: String): Color {
     val colors = listOf(
-        Color(0xFF4CAF50),
-        Color(0xFF2196F3),
-        Color(0xFFFF9800),
-        Color(0xFF9C27B0),
-        Color(0xFFF44336),
-        Color(0xFF00BCD4)
+        Color(0xFF3B82F6), // PrimaryBlue
+        Color(0xFF14B8A6), // AccentTeal
+        Color(0xFF8B5CF6), // AccentPurple
+        Color(0xFFF59E0B), // AccentAmber
+        Color(0xFFEC4899), // AccentRose
+        Color(0xFF10B981)  // SuccessGreen
     )
     return colors[accountName.hashCode().mod(colors.size)]
 }
