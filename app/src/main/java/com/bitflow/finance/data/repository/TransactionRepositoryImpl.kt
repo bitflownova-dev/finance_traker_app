@@ -2,9 +2,11 @@ package com.bitflow.finance.data.repository
 
 import com.bitflow.finance.data.local.dao.CategoryDao
 import com.bitflow.finance.data.local.dao.LearningRuleDao
+import com.bitflow.finance.data.local.dao.RecurringPatternDao
 import com.bitflow.finance.data.local.dao.TransactionDao
 import com.bitflow.finance.data.local.entity.CategoryEntity
 import com.bitflow.finance.data.local.entity.LearningRuleEntity
+import com.bitflow.finance.data.local.entity.RecurringPatternEntity
 import com.bitflow.finance.data.local.entity.TransactionEntity
 import com.bitflow.finance.domain.model.Activity
 import com.bitflow.finance.domain.model.ActivityType
@@ -14,23 +16,31 @@ import com.bitflow.finance.domain.model.RecurringPattern
 import com.bitflow.finance.domain.model.SubscriptionDetectionCard
 import com.bitflow.finance.domain.repository.TransactionRepository
 import com.bitflow.finance.domain.repository.AuthRepository
+import com.bitflow.finance.domain.repository.SettingsRepository
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 
 class TransactionRepositoryImpl @Inject constructor(
     private val transactionDao: TransactionDao,
     private val categoryDao: CategoryDao,
     private val learningRuleDao: LearningRuleDao,
-    private val authRepository: AuthRepository
+    private val recurringPatternDao: RecurringPatternDao,
+    private val transactionAuditDao: com.bitflow.finance.data.local.dao.TransactionAuditDao,
+    private val authRepository: AuthRepository,
+    private val settingsRepository: SettingsRepository
 ) : TransactionRepository {
 
     override fun getAllTransactions(): Flow<List<Activity>> {
-        return authRepository.currentUserId.flatMapLatest { userId ->
-            transactionDao.getAllTransactions(userId).map { entities -> entities.map { it.toDomain() } }
+        return combine(authRepository.currentUserId, settingsRepository.appMode) { userId, mode ->
+            Pair(userId, mode)
+        }.flatMapLatest { (userId, mode) ->
+            transactionDao.getAllTransactions(userId, mode).map { entities -> entities.map { it.toDomain() } }
         }
     }
 
@@ -41,14 +51,23 @@ class TransactionRepositoryImpl @Inject constructor(
     }
 
     override fun getTransactionsInPeriod(startDate: LocalDate, endDate: LocalDate): Flow<List<Activity>> {
-        return authRepository.currentUserId.flatMapLatest { userId ->
-            transactionDao.getTransactionsInPeriod(startDate, endDate, userId).map { entities -> entities.map { it.toDomain() } }
+        return combine(authRepository.currentUserId, settingsRepository.appMode) { userId, mode ->
+            Pair(userId, mode)
+        }.flatMapLatest { (userId, mode) ->
+            transactionDao.getTransactionsInPeriod(startDate, endDate, userId, mode).map { entities -> entities.map { it.toDomain() } }
         }
     }
 
     override suspend fun insertTransaction(transaction: Activity): Long {
         val userId = authRepository.currentUserId.first()
-        return transactionDao.insertTransaction(transaction.toEntity(userId))
+        val id = transactionDao.insertTransaction(transaction.toEntity(userId))
+        logAudit(
+            transactionId = id,
+            userId = userId,
+            action = com.bitflow.finance.data.local.entity.AuditAction.CREATE,
+            newValue = "Created: ${transaction.amount} - ${transaction.description}"
+        )
+        return id
     }
 
     override suspend fun insertTransactions(transactions: List<Activity>) {
@@ -63,7 +82,21 @@ class TransactionRepositoryImpl @Inject constructor(
 
     override suspend fun updateTransaction(transaction: Activity) {
         val userId = authRepository.currentUserId.first()
+        val oldTransaction = transactionDao.getTransactionById(transaction.id, userId)?.toDomain()
+        
         transactionDao.updateTransaction(transaction.toEntity(userId))
+        
+        if (oldTransaction != null) {
+            if (oldTransaction.amount != transaction.amount) {
+                logAudit(transaction.id, userId, com.bitflow.finance.data.local.entity.AuditAction.UPDATE, "amount", oldTransaction.amount.toString(), transaction.amount.toString())
+            }
+            if (oldTransaction.description != transaction.description) {
+                logAudit(transaction.id, userId, com.bitflow.finance.data.local.entity.AuditAction.UPDATE, "description", oldTransaction.description, transaction.description)
+            }
+            if (oldTransaction.activityDate != transaction.activityDate) {
+                logAudit(transaction.id, userId, com.bitflow.finance.data.local.entity.AuditAction.UPDATE, "date", oldTransaction.activityDate.toString(), transaction.activityDate.toString())
+            }
+        }
     }
 
     override suspend fun findExistingTransaction(
@@ -96,8 +129,11 @@ class TransactionRepositoryImpl @Inject constructor(
             billPhotoUri = billPhotoUri,
             notes = notes,
             balanceAfterTxn = balanceAfterTxn,
+            isAutoCategorized = isAutoCategorized,
             createdAt = createdAt,
-            updatedAt = updatedAt
+            updatedAt = updatedAt,
+            context = context,
+            linkedGoalId = linkedGoalId
         )
     }
 
@@ -117,8 +153,11 @@ class TransactionRepositoryImpl @Inject constructor(
             billPhotoUri = billPhotoUri,
             notes = notes,
             balanceAfterTxn = balanceAfterTxn,
+            isAutoCategorized = isAutoCategorized,
             createdAt = createdAt,
-            updatedAt = updatedAt
+            updatedAt = updatedAt,
+            context = context,
+            linkedGoalId = linkedGoalId
         )
     }
     
@@ -200,78 +239,167 @@ class TransactionRepositoryImpl @Inject constructor(
     
     // Recurring pattern methods (subscriptions)
     override suspend fun insertRecurringPattern(pattern: RecurringPattern) {
-        // TODO: Create RecurringPatternEntity and DAO
-        // For now, just log
-        println("[Repository] Would insert recurring pattern: ${pattern.merchantName}")
+        val userId = authRepository.currentUserId.first()
+        recurringPatternDao.insert(pattern.toEntity(userId))
     }
     
     override suspend fun updateRecurringPattern(pattern: RecurringPattern) {
-        // TODO: Implement when RecurringPatternDao exists
-        println("[Repository] Would update recurring pattern: ${pattern.merchantName}")
+        val userId = authRepository.currentUserId.first()
+        recurringPatternDao.update(pattern.toEntity(userId))
     }
     
     override suspend fun findRecurringPattern(merchantName: String): RecurringPattern? {
-        // TODO: Implement when RecurringPatternDao exists
-        return null
+        val userId = authRepository.currentUserId.first()
+        return recurringPatternDao.findByMerchant(userId, merchantName.lowercase())?.toDomain()
     }
     
     override suspend fun getUnconfirmedSubscriptions(): List<SubscriptionDetectionCard> {
-        // TODO: Implement when RecurringPatternDao exists
-        return emptyList()
+        val userId = authRepository.currentUserId.first()
+        return recurringPatternDao.getUnconfirmedPatterns(userId).map { entity ->
+            SubscriptionDetectionCard(
+                id = entity.id,
+                merchantName = entity.merchantName,
+                averageAmount = entity.averageAmount,
+                frequency = entity.frequency,
+                confidenceScore = entity.confidenceScore,
+                nextExpectedDate = entity.nextExpectedDate
+            )
+        }
     }
     
     override suspend fun confirmSubscription(patternId: Long) {
-        // TODO: Implement when RecurringPatternDao exists
-        println("[Repository] Would confirm subscription: $patternId")
+        recurringPatternDao.confirmSubscription(patternId)
     }
     
     override suspend fun dismissSubscription(patternId: Long) {
-        // TODO: Implement when RecurringPatternDao exists
-        println("[Repository] Would dismiss subscription: $patternId")
+        recurringPatternDao.dismissSubscription(patternId)
+    }
+    
+    // Entity <-> Domain conversions for RecurringPattern
+    private fun RecurringPattern.toEntity(userId: String): RecurringPatternEntity {
+        return RecurringPatternEntity(
+            id = this.id,
+            userId = userId,
+            merchantName = this.merchantName.lowercase(),
+            averageAmount = this.averageAmount,
+            frequency = this.frequency,
+            intervalDays = this.intervalDays,
+            occurrenceCount = this.occurrenceCount,
+            lastTransactionDate = this.lastTransactionDate,
+            nextExpectedDate = this.nextExpectedDate,
+            confidenceScore = this.confidenceScore,
+            isConfirmedSubscription = this.isConfirmedSubscription,
+            isDismissed = false,
+            categoryId = this.categoryId,
+            type = this.type.name
+        )
+    }
+    
+    private fun RecurringPatternEntity.toDomain(): RecurringPattern {
+        return RecurringPattern(
+            id = this.id,
+            merchantName = this.merchantName,
+            averageAmount = this.averageAmount,
+            frequency = this.frequency,
+            intervalDays = this.intervalDays,
+            occurrenceCount = this.occurrenceCount,
+            lastTransactionDate = this.lastTransactionDate,
+            nextExpectedDate = this.nextExpectedDate,
+            confidenceScore = this.confidenceScore,
+            isConfirmedSubscription = this.isConfirmedSubscription,
+            categoryId = this.categoryId,
+            type = try { ActivityType.valueOf(this.type) } catch (e: Exception) { ActivityType.EXPENSE }
+        )
     }
     
     // Daily Pulse calculation methods
+    // Use explicit timezone to prevent date shifting when user travels
+    private val appTimeZone = ZoneId.of("Asia/Kolkata")
+    
     override suspend fun getMonthlyIncome(): Double {
         val userId = authRepository.currentUserId.first()
-        val startOfMonth = LocalDate.now().withDayOfMonth(1)
-        val endOfMonth = LocalDate.now().withDayOfMonth(LocalDate.now().lengthOfMonth())
+        val mode = settingsRepository.appMode.first()
+        val today = LocalDate.now(appTimeZone)
+        val startOfMonth = today.withDayOfMonth(1)
+        val endOfMonth = today.withDayOfMonth(today.lengthOfMonth())
         
-        return transactionDao.getTransactionsInPeriod(startOfMonth, endOfMonth, userId)
+        return transactionDao.getTransactionsInPeriod(startOfMonth, endOfMonth, userId, mode)
             .first()
             .filter { it.direction == ActivityType.INCOME }
             .sumOf { it.amount }
     }
     
     override suspend fun getMonthlyFixedExpenses(): Double {
-        // TODO: Sum confirmed subscriptions when RecurringPatternDao exists
-        return 0.0
+        // Calculate recurring expenses from historical data
+        // A "fixed expense" is one that appears 2+ months in a row with similar amount
+        val userId = authRepository.currentUserId.first()
+        val mode = settingsRepository.appMode.first()
+        val today = LocalDate.now(appTimeZone)
+        val threeMonthsAgo = today.minusMonths(3)
+        
+        val transactions = transactionDao.getTransactionsInPeriod(threeMonthsAgo, today, userId, mode)
+            .first()
+            .filter { it.direction == ActivityType.EXPENSE }
+        
+        // Group by normalized description (merchant)
+        val groupedByMerchant = transactions
+            .groupBy { it.description.trim().lowercase().take(20) } // Normalize merchant name
+            .filter { it.value.size >= 2 } // Must appear 2+ times
+        
+        // Sum up the average amount for each recurring expense
+        return groupedByMerchant.values.sumOf { merchantTransactions ->
+            val avgAmount = merchantTransactions.map { it.amount }.average()
+            // Check if amounts are consistent (within 20% variance)
+            val isConsistent = merchantTransactions.all { 
+                kotlin.math.abs(it.amount - avgAmount) / avgAmount <= 0.20 
+            }
+            if (isConsistent) avgAmount else 0.0
+        }
     }
     
     override suspend fun getTodayExpenses(): Double {
         val userId = authRepository.currentUserId.first()
-        val today = LocalDate.now()
+        val mode = settingsRepository.appMode.first()
+        val today = LocalDate.now(appTimeZone)
         
-        return transactionDao.getTransactionsInPeriod(today, today, userId)
+        return transactionDao.getTransactionsInPeriod(today, today, userId, mode)
             .first()
             .filter { it.direction == ActivityType.EXPENSE }
             .sumOf { it.amount }
     }
     
     override suspend fun getRecentTransactions(limit: Int): Flow<List<Activity>> {
-        return authRepository.currentUserId.flatMapLatest { userId ->
-            transactionDao.getRecentTransactions(limit, userId).map { entities ->
+        return combine(authRepository.currentUserId, settingsRepository.appMode) { userId, mode ->
+            Pair(userId, mode)
+        }.flatMapLatest { (userId, mode) ->
+            transactionDao.getRecentTransactions(limit, userId, mode).map { entities ->
                 entities.map { it.toDomain() }
             }
         }
     }
     
+    override suspend fun getTransactionsForSubscriptionDetection(startDate: LocalDate): List<com.bitflow.finance.data.local.entity.TransactionEntity> {
+        val userId = authRepository.currentUserId.first()
+        return transactionDao.getTransactionsForSubscriptionDetection(startDate, userId)
+    }
+    
     // Transaction deletion
     override suspend fun deleteTransaction(activityId: Long) {
         val userId = authRepository.currentUserId.first()
+        val oldTransaction = transactionDao.getTransactionById(activityId, userId)?.toDomain()
+        
         transactionDao.deleteTransaction(activityId, userId)
+        
+        if (oldTransaction != null) {
+             logAudit(
+                transactionId = activityId,
+                userId = userId,
+                action = com.bitflow.finance.data.local.entity.AuditAction.DELETE,
+                oldValue = "Deleted: ${oldTransaction.amount} - ${oldTransaction.description}"
+            )
+        }
     }
     
-    // Performance optimization methods
     override suspend fun getAllTransactionsForDeduplication(accountId: Long): List<Activity> {
         val userId = authRepository.currentUserId.first()
         return transactionDao.getAllTransactionsSync(accountId, userId).map { it.toDomain() }
@@ -281,12 +409,45 @@ class TransactionRepositoryImpl @Inject constructor(
         val userId = authRepository.currentUserId.first()
         return transactionDao.calculateBalance(accountId, initialBalance, userId)
     }
+
+    override fun getAuditLogs(transactionId: Long): Flow<List<com.bitflow.finance.data.local.entity.TransactionAuditLogEntity>> {
+        return transactionAuditDao.getLogsForTransaction(transactionId)
+    }
+
+    private suspend fun logAudit(
+        transactionId: Long,
+        userId: String,
+        action: com.bitflow.finance.data.local.entity.AuditAction,
+        fieldName: String? = null,
+        oldValue: String? = null,
+        newValue: String? = null
+    ) {
+        transactionAuditDao.insertLog(
+            com.bitflow.finance.data.local.entity.TransactionAuditLogEntity(
+                transactionId = transactionId,
+                userId = userId,
+                action = action,
+                fieldName = fieldName,
+                oldValue = oldValue,
+                newValue = newValue
+            )
+        )
+    }
+
     
     override suspend fun getLatestTransactionBalance(accountId: Long): Double? {
         val userId = authRepository.currentUserId.first()
         // Get the most recent transaction that has a balance recorded
         val latestTransaction = transactionDao.getLatestTransactionWithBalance(accountId, userId)
         return latestTransaction?.balanceAfterTxn?.takeIf { it > 0.0 }
+    }
+
+    override fun getTaxDeductibleTransactions(startDate: LocalDate, endDate: LocalDate): Flow<List<Activity>> {
+        return authRepository.currentUserId.flatMapLatest { userId ->
+            transactionDao.getTaxDeductibleTransactions(userId, startDate, endDate).map { entities -> 
+                entities.map { it.toDomain() } 
+            }
+        }
     }
     
     // Conversion functions

@@ -45,6 +45,12 @@ interface StatementParser {
 
 class UniversalStatementParser : StatementParser {
     
+    companion object {
+        // Maximum file size to prevent OutOfMemory crashes on low-end devices
+        // 10MB is a reasonable limit for bank statements (most are < 2MB)
+        private const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
+    }
+    
     private var isInitialized = false
     
     override fun initialize(context: Context) {
@@ -56,7 +62,14 @@ class UniversalStatementParser : StatementParser {
 
     override suspend fun parse(inputStream: InputStream): List<ParsedTransaction> {
         // Read stream into byte array to allow multiple parsing attempts
+        // Note: This is required for file type detection and PDF parsing
         val bytes = inputStream.readBytes()
+        
+        // Prevent OutOfMemory crash on low-end devices with large files
+        if (bytes.size > MAX_FILE_SIZE_BYTES) {
+            println("[Parser] File too large: ${bytes.size} bytes (max: $MAX_FILE_SIZE_BYTES). Aborting.")
+            return emptyList()
+        }
         println("[Parser] Read ${bytes.size} bytes from input stream")
         
         // Detect file type
@@ -212,8 +225,8 @@ class UniversalStatementParser : StatementParser {
      */
     private fun parseTransactionLine(line: String, datePatterns: List<DateTimeFormatter>): ParsedTransaction? {
         try {
-            // Split by multiple spaces (2 or more)
-            val parts = line.split(Regex("\\s{2,}"))
+            // Split by one or more spaces (more flexible for PDFs with tight layouts)
+            val parts = line.split(Regex("\\s+"))
             if (parts.size < 3) return null
             
             // Try to find date in first few parts

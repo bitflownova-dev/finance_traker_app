@@ -14,5 +14,8 @@ data class CategoryEntity(
     val color: Int,
     val usageCount: Int = 0, // Track frequency for smart sorting
     val isUserDeletable: Boolean = true, // Allow deletion of custom categories
-    val isHidden: Boolean = false // Support hiding without deleting
+    val isHidden: Boolean = false, // Support hiding without deleting
+    val monthlyBudget: Double? = null, // Monthly spending limit for alerts
+    val isTaxDeductible: Boolean = false,
+    val isEssential: Boolean = false // For "Needs vs Wants" analysis (Behavior Intelligence)
 )

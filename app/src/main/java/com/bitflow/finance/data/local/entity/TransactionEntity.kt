@@ -32,6 +32,8 @@ data class TransactionEntity(
     val notes: String?,
     val balanceAfterTxn: Double? = null, // Balance from bank statement
     val isAutoCategorized: Boolean = false, // Track if category was predicted
+    val context: com.bitflow.finance.domain.model.AppMode = com.bitflow.finance.domain.model.AppMode.PERSONAL, // PERSONAL or BUSINESS
+    val linkedGoalId: Long? = null,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime
 )

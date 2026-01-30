@@ -14,7 +14,8 @@ data class RecurringPattern(
     val occurrenceCount: Int,
     val isConfirmedSubscription: Boolean = false,
     val isDismissed: Boolean = false,
-    val categoryId: Long?
+    val categoryId: Long?,
+    val type: ActivityType = ActivityType.EXPENSE
 )
 
 enum class RecurrenceFrequency {

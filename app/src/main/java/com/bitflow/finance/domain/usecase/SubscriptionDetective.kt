@@ -3,6 +3,7 @@ package com.bitflow.finance.domain.usecase
 import com.bitflow.finance.data.local.entity.TransactionEntity
 import com.bitflow.finance.domain.model.RecurringPattern
 import com.bitflow.finance.domain.model.RecurrenceFrequency
+import com.bitflow.finance.domain.model.ActivityType
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
@@ -117,6 +118,7 @@ class SubscriptionDetective @Inject constructor() {
             occurrenceCount = transactions.size,
             isConfirmedSubscription = false,
             isDismissed = false,
+            type = transactions.first().direction, // Typealias to ActivityType
             categoryId = transactions.first().categoryId
         )
     }

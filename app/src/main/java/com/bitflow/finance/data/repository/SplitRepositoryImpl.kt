@@ -183,23 +183,21 @@ class SplitRepositoryImpl @Inject constructor(
         return splitDao.getGroupBalance(groupId, userId)
     }
     
+    /**
+     * Get user balance across all groups - FIXED to use single query instead of N+1.
+     * Previously this was O(N) database queries causing UI lag.
+     */
     override fun getUserBalance(userId: String): Flow<Map<String, Double>> {
         return flow {
-            val balanceMap = mutableMapOf<String, Double>()
+            // Single efficient query instead of N+1 loop
+            val allBalances = splitDao.getAllGroupBalancesForUser(userId)
             
-            // Collect groups once
-            getUserGroups(userId).collect { groups ->
-                groups.forEach { group ->
-                    val groupBalance = splitDao.getGroupBalance(group.groupId, userId)
-                    if (groupBalance != null) {
-                        val netBalance = groupBalance.owedAmount - groupBalance.owingAmount
-                        balanceMap[group.groupId] = netBalance
-                    } else {
-                        balanceMap[group.groupId] = 0.0
-                    }
-                }
-                emit(balanceMap)
+            val balanceMap = allBalances.associate { groupBalance ->
+                val netBalance = groupBalance.owedAmount - groupBalance.owingAmount
+                groupBalance.groupId to netBalance
             }
+            
+            emit(balanceMap)
         }
     }
 }

@@ -7,11 +7,15 @@ import androidx.room.Query
 import androidx.room.Update
 import com.bitflow.finance.data.local.entity.AccountEntity
 import kotlinx.coroutines.flow.Flow
+import com.bitflow.finance.domain.model.AppMode
 
 @Dao
 interface AccountDao {
-    @Query("SELECT * FROM accounts WHERE userId = :userId")
-    fun getAllAccounts(userId: String): Flow<List<AccountEntity>>
+    @Query("SELECT * FROM accounts WHERE userId = :userId AND context = :context")
+    fun getAllAccounts(userId: String, context: AppMode): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM accounts")
+    fun getAllAccountsSync(): List<AccountEntity>
 
     @Query("SELECT * FROM accounts WHERE id = :id AND userId = :userId")
     suspend fun getAccountById(id: Long, userId: String): AccountEntity?

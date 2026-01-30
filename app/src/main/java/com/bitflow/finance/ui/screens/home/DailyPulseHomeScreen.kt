@@ -32,6 +32,8 @@ import com.bitflow.finance.domain.model.RecurringPattern
 import com.bitflow.finance.ui.components.FilterChipsRow
 import com.bitflow.finance.ui.components.TimeFilter
 import com.bitflow.finance.ui.components.getDateRangeForFilter
+import com.bitflow.finance.domain.model.AppMode
+import com.bitflow.finance.ui.components.ModeToggle
 import java.time.format.DateTimeFormatter
 
 /**
@@ -45,9 +47,13 @@ fun DailyPulseHomeScreen(
     onAddActivityClick: () -> Unit,
     onActivityClick: (Long) -> Unit,
     onImportClick: () -> Unit,
-    onAnalyticsClick: () -> Unit
+    onAnalyticsClick: () -> Unit,
+    onToolsClick: () -> Unit,
+    currentMode: AppMode,
+    onModeChange: (AppMode) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val streak by viewModel.streak.collectAsState()
     var selectedFilter by remember { mutableStateOf(TimeFilter.THIS_MONTH) }
     
     // Apply filter to activities and ensure proper sorting
@@ -81,19 +87,53 @@ fun DailyPulseHomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = getGreeting(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = if (uiState.userName.isNotBlank()) uiState.userName else "Your Money",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = getGreeting(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (uiState.userName.isNotBlank()) uiState.userName else "Your Money",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                        
+                        // Streak Badge
+                        if (streak > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFFFF5722).copy(alpha = 0.1f),
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "\uD83D\uDD25", // Fire emoji
+                                        fontSize = 14.sp
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "$streak",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = Color(0xFFFF5722),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
                 },
                 actions = {
+                    IconButton(onClick = onToolsClick) {
+                        Icon(
+                            imageVector = Icons.Default.Build,
+                            contentDescription = "Tools"
+                        )
+                    }
                     IconButton(onClick = onImportClick) {
                         Icon(
                             imageVector = Icons.Default.Upload,
@@ -139,6 +179,15 @@ fun DailyPulseHomeScreen(
                 contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Mode Toggle
+                item {
+                    ModeToggle(
+                        currentMode = currentMode,
+                        onModeChange = onModeChange,
+                        modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally)
+                    )
+                }
+
                 // Phase 3.1: Daily Pulse Card (Top Priority)
                 item {
                     DailyPulseCard(
@@ -146,10 +195,15 @@ fun DailyPulseHomeScreen(
                         monthIncome = uiState.monthIncome,
                         monthExpenses = uiState.monthExpenses,
                         spentToday = uiState.todayExpenses,
-                        isPrivacyMode = uiState.isPrivacyMode,
-                        pulseStatus = uiState.pulseStatus
-                    )
+                onTogglePrivacy = { viewModel.togglePrivacyMode() }
+            )
+            
+            // Smart Nudge
+            if (uiState.smartNudge != null) {
+                item {
+                    SmartNudgeCard(nudge = uiState.smartNudge!!)
                 }
+            }
 
             // Phase 3.2: Subscription Alerts
             if (uiState.potentialSubscriptions.isNotEmpty()) {
@@ -613,4 +667,53 @@ enum class PulseStatus {
     GOOD,
     CAUTION,
     SLOW_DOWN
+}
+
+@Composable
+fun SmartNudgeCard(nudge: com.bitflow.finance.domain.usecase.SmartNudge) {
+    val (bgColor, textColor) = when (nudge.type) {
+        com.bitflow.finance.domain.usecase.NudgeType.WARNING -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        com.bitflow.finance.domain.usecase.NudgeType.CELEBRATION -> Color(0xFFECFDF5) to Color(0xFF047857)
+        com.bitflow.finance.domain.usecase.NudgeType.TIP -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = bgColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(
+                text = when(nudge.type) {
+                    com.bitflow.finance.domain.usecase.NudgeType.WARNING -> "⚠️"
+                    com.bitflow.finance.domain.usecase.NudgeType.CELEBRATION -> "🎉"
+                    com.bitflow.finance.domain.usecase.NudgeType.TIP -> "💡"
+                    else -> "ℹ️"
+                },
+                style = MaterialTheme.typography.titleLarge
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = nudge.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = textColor
+                )
+                if (nudge.actionLabel != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = nudge.actionLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = textColor,
+                        modifier = Modifier.clickable { /* Handle action */ }
+                    )
+                }
+            }
+        }
+    }
 }

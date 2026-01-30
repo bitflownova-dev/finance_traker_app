@@ -15,6 +15,9 @@ interface UserAccountDao {
     
     @Query("SELECT * FROM user_accounts WHERE userId = :userId")
     suspend fun getUserById(userId: String): UserAccountEntity?
+
+    @Query("SELECT * FROM user_accounts WHERE userId = :userId")
+    fun getUserFlow(userId: String): Flow<UserAccountEntity?>
     
     // Username is UNIQUE - returns single user or null
     @Query("SELECT * FROM user_accounts WHERE username = :username AND isActive = 1 LIMIT 1")

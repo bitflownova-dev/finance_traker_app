@@ -23,5 +23,10 @@ data class UserAccountEntity(
     val securityAnswerHash: String, // Hashed answer
     val createdAt: Long = System.currentTimeMillis(),
     val lastLoginAt: Long = System.currentTimeMillis(),
-    val isActive: Boolean = true // For soft delete
+    val isActive: Boolean = true, // For soft delete
+    val isBusinessEnabled: Boolean = false, // Track if user has activated business features
+    // Gamification - Streaks
+    val currentStreak: Int = 0,
+    val longestStreak: Int = 0,
+    val lastLogDate: Long? = null // Last date a transaction was logged
 )

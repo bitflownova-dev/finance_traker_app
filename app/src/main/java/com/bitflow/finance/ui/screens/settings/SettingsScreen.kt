@@ -17,6 +17,8 @@ import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,7 +57,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val backupRepository: com.bitflow.finance.data.repository.BackupRepository
 ) : ViewModel() {
 
     val uiState: StateFlow<SettingsUiState> = combine(
@@ -89,6 +92,22 @@ class SettingsViewModel @Inject constructor(
     fun setBiometricEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setBiometricEnabled(enabled)
+        }
+    }
+    
+    fun exportData(uri: android.net.Uri, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            backupRepository.exportData(uri)
+                .onSuccess { onSuccess() }
+                .onFailure { onError(it.message ?: "Export failed") }
+        }
+    }
+
+    fun importData(uri: android.net.Uri, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            backupRepository.importData(uri)
+                .onSuccess { onSuccess() }
+                .onFailure { onError(it.message ?: "Import failed") }
         }
     }
 }
@@ -141,6 +160,11 @@ fun SettingsScreen(
                 .padding(padding)
                 .padding(24.dp)
         ) {
+            // Zero Cloud Badge - Privacy Trust Section
+            ZeroCloudBadge()
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
             SettingsSection(title = "General") {
                 SettingsItem(
                     icon = Icons.Outlined.Category,
@@ -180,12 +204,97 @@ fun SettingsScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
             
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val createDocumentLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+            ) { uri ->
+                uri?.let {
+                    viewModel.exportData(it, 
+                        onSuccess = { 
+                            android.widget.Toast.makeText(context, "Backup successful!", android.widget.Toast.LENGTH_SHORT).show() 
+                        },
+                        onError = { msg ->
+                            android.widget.Toast.makeText(context, "Backup failed: $msg", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+
+            val openDocumentLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                uri?.let {
+                    viewModel.importData(it,
+                        onSuccess = { 
+                            android.widget.Toast.makeText(context, "Restore successful!", android.widget.Toast.LENGTH_SHORT).show() 
+                        },
+                        onError = { msg ->
+                            android.widget.Toast.makeText(context, "Restore failed: $msg", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+
+            SettingsSection(title = "Data Management") {
+                SettingsItem(
+                    icon = androidx.compose.material.icons.filled.CloudUpload,
+                    title = "Backup Data",
+                    subtitle = "Export your data to a JSON file",
+                    onClick = { 
+                        createDocumentLauncher.launch("finance_app_backup_${System.currentTimeMillis()}.json") 
+                    }
+                )
+                SettingsItem(
+                    icon = androidx.compose.material.icons.filled.CloudDownload,
+                    title = "Restore Data",
+                    subtitle = "Import data from a backup file",
+                    onClick = { 
+                        openDocumentLauncher.launch(arrayOf("application/json"))
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            
             SettingsSection(title = "Appearance") {
                 SettingsItem(
                     icon = Icons.Outlined.Palette,
                     title = "Theme",
                     subtitle = "System Default",
                     onClick = { /* TODO */ }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ZeroCloudBadge() {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = androidx.compose.ui.graphics.Color(0xFF10B981).copy(alpha = 0.15f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("🔒", style = MaterialTheme.typography.headlineLarge)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Zero Cloud",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = androidx.compose.ui.graphics.Color(0xFF10B981)
+                )
+                Text(
+                    "Your data never leaves this device. We don't have servers.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

@@ -23,4 +23,27 @@ interface InvoiceDao {
 
     @Query("DELETE FROM invoices WHERE id = :id AND userId = :userId")
     suspend fun deleteInvoice(id: Long, userId: String)
+    
+    // GST Summary queries
+    @Query("SELECT COALESCE(SUM(cgst), 0) FROM invoices WHERE userId = :userId AND date BETWEEN :startDate AND :endDate")
+    suspend fun getTotalCgst(userId: String, startDate: Long, endDate: Long): Double
+    
+    @Query("SELECT COALESCE(SUM(sgst), 0) FROM invoices WHERE userId = :userId AND date BETWEEN :startDate AND :endDate")
+    suspend fun getTotalSgst(userId: String, startDate: Long, endDate: Long): Double
+    
+    @Query("SELECT COALESCE(SUM(igst), 0) FROM invoices WHERE userId = :userId AND date BETWEEN :startDate AND :endDate")
+    suspend fun getTotalIgst(userId: String, startDate: Long, endDate: Long): Double
+    
+    @Query("SELECT COALESCE(SUM(subtotal), 0) FROM invoices WHERE userId = :userId AND date BETWEEN :startDate AND :endDate")
+    suspend fun getTotalSubtotal(userId: String, startDate: Long, endDate: Long): Double
+    
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM invoices WHERE userId = :userId AND date BETWEEN :startDate AND :endDate")
+    suspend fun getTotalAmount(userId: String, startDate: Long, endDate: Long): Double
+    
+    // TDS Summary
+    @Query("SELECT COALESCE(SUM(tdsAmount), 0) FROM invoices WHERE userId = :userId AND date BETWEEN :startDate AND :endDate")
+    suspend fun getTotalTds(userId: String, startDate: Long, endDate: Long): Double
+    
+    @Query("SELECT * FROM invoices WHERE userId = :userId AND date BETWEEN :startDate AND :endDate ORDER BY date DESC")
+    fun getInvoicesInPeriod(userId: String, startDate: Long, endDate: Long): Flow<List<InvoiceEntity>>
 }

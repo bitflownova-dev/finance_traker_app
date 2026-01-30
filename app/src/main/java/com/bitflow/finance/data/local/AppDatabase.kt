@@ -11,6 +11,13 @@ import com.bitflow.finance.data.local.dao.InvoiceDao
 import com.bitflow.finance.data.local.dao.UserAccountDao
 import com.bitflow.finance.data.local.dao.FriendDao
 import com.bitflow.finance.data.local.dao.SplitDao
+import com.bitflow.finance.data.local.dao.SavingsGoalDao
+import com.bitflow.finance.data.local.dao.BillReminderDao
+import com.bitflow.finance.data.local.dao.TransactionTemplateDao
+import com.bitflow.finance.data.local.dao.ClientDao
+import com.bitflow.finance.data.local.dao.DebtDao
+import com.bitflow.finance.data.local.dao.HoldingDao
+import com.bitflow.finance.data.local.dao.RecurringPatternDao
 import com.bitflow.finance.data.local.entity.AccountEntity
 import com.bitflow.finance.data.local.entity.CategoryEntity
 import com.bitflow.finance.data.local.entity.LearningRuleEntity
@@ -22,6 +29,14 @@ import com.bitflow.finance.data.local.entity.SplitGroupEntity
 import com.bitflow.finance.data.local.entity.SplitGroupMemberEntity
 import com.bitflow.finance.data.local.entity.SplitExpenseEntity
 import com.bitflow.finance.data.local.entity.SplitExpenseShareEntity
+import com.bitflow.finance.data.local.entity.SavingsGoalEntity
+import com.bitflow.finance.data.local.entity.BillReminderEntity
+import com.bitflow.finance.data.local.entity.TransactionTemplateEntity
+import com.bitflow.finance.data.local.entity.ClientEntity
+import com.bitflow.finance.data.local.entity.DebtEntity
+import com.bitflow.finance.data.local.entity.HoldingEntity
+import com.bitflow.finance.data.local.entity.RecurringPatternEntity
+
 
 @Database(
     entities = [
@@ -35,9 +50,16 @@ import com.bitflow.finance.data.local.entity.SplitExpenseShareEntity
         SplitGroupEntity::class,
         SplitGroupMemberEntity::class,
         SplitExpenseEntity::class,
-        SplitExpenseShareEntity::class
+        SplitExpenseShareEntity::class,
+        SavingsGoalEntity::class,
+        BillReminderEntity::class,
+        TransactionTemplateEntity::class,
+        ClientEntity::class,
+        DebtEntity::class,
+        HoldingEntity::class,
+        RecurringPatternEntity::class
     ],
-    version = 10,
+    version = 24,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -50,8 +72,31 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userAccountDao(): UserAccountDao
     abstract fun friendDao(): FriendDao
     abstract fun splitDao(): SplitDao
+    abstract fun savingsGoalDao(): SavingsGoalDao
+    abstract fun billReminderDao(): BillReminderDao
+    abstract fun transactionTemplateDao(): TransactionTemplateDao
+    abstract fun clientDao(): ClientDao
+    abstract fun debtDao(): DebtDao
+    abstract fun holdingDao(): HoldingDao
+    abstract fun recurringPatternDao(): RecurringPatternDao
     
     companion object {
+        @Volatile
+        private var INSTANCE: AppDatabase? = null
+
+        fun getInstance(context: android.content.Context): AppDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = androidx.room.Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "finance_app_db"
+                )
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
+                .build()
+                INSTANCE = instance
+                instance
+            }
+        }
         // Built-in Indian expense categories - accessible to all users (userId = NULL)
         val BUILT_IN_CATEGORIES = listOf(
             // Food & Dining
@@ -427,6 +472,222 @@ abstract class AppDatabase : RoomDatabase() {
                 
                 // Ensure built-in Indian categories exist for all users
                 insertBuiltInCategories(database)
+            }
+        }
+
+        val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Add context column to transactions table (Default: PERSONAL)
+                database.execSQL("ALTER TABLE transactions ADD COLUMN context TEXT NOT NULL DEFAULT 'PERSONAL'")
+
+                // Add context column to accounts table (Default: PERSONAL)
+                database.execSQL("ALTER TABLE accounts ADD COLUMN context TEXT NOT NULL DEFAULT 'PERSONAL'")
+                
+                // Add isBusinessEnabled to user_accounts table (Default: 0/false)
+                database.execSQL("ALTER TABLE user_accounts ADD COLUMN isBusinessEnabled INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Create savings_goals table
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS savings_goals (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        targetAmount REAL NOT NULL,
+                        currentAmount REAL NOT NULL DEFAULT 0.0,
+                        deadline INTEGER,
+                        iconEmoji TEXT NOT NULL DEFAULT '🎯',
+                        colorHex TEXT NOT NULL DEFAULT '#3B82F6',
+                        createdAt INTEGER NOT NULL,
+                        isCompleted INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_savings_goals_userId ON savings_goals(userId)")
+            }
+        }
+
+        val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Create bill_reminders table
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS bill_reminders (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        amount REAL NOT NULL,
+                        dueDay INTEGER NOT NULL,
+                        reminderDaysBefore INTEGER NOT NULL DEFAULT 3,
+                        isRecurring INTEGER NOT NULL DEFAULT 1,
+                        categoryId INTEGER,
+                        isActive INTEGER NOT NULL DEFAULT 1,
+                        lastNotifiedMonth INTEGER,
+                        createdAt INTEGER NOT NULL
+                    )
+                """)
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_bill_reminders_userId ON bill_reminders(userId)")
+            }
+        }
+
+        val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Add monthlyBudget column to categories table
+                database.execSQL("ALTER TABLE categories ADD COLUMN monthlyBudget REAL")
+            }
+        }
+
+        val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Create transaction_templates table
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS transaction_templates (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        amount REAL NOT NULL,
+                        type TEXT NOT NULL,
+                        categoryId INTEGER NOT NULL,
+                        description TEXT NOT NULL DEFAULT '',
+                        context TEXT NOT NULL DEFAULT 'PERSONAL',
+                        icon TEXT NOT NULL DEFAULT '💳',
+                        createdAt INTEGER NOT NULL
+                    )
+                """)
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_transaction_templates_userId ON transaction_templates(userId)")
+            }
+        }
+
+        val MIGRATION_15_16 = object : androidx.room.migration.Migration(15, 16) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Add GST and TDS columns to invoices table
+                database.execSQL("ALTER TABLE invoices ADD COLUMN clientGstin TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE invoices ADD COLUMN subtotal REAL NOT NULL DEFAULT 0.0")
+                database.execSQL("ALTER TABLE invoices ADD COLUMN cgst REAL NOT NULL DEFAULT 0.0")
+                database.execSQL("ALTER TABLE invoices ADD COLUMN sgst REAL NOT NULL DEFAULT 0.0")
+                database.execSQL("ALTER TABLE invoices ADD COLUMN igst REAL NOT NULL DEFAULT 0.0")
+                database.execSQL("ALTER TABLE invoices ADD COLUMN tdsRate REAL NOT NULL DEFAULT 0.0")
+                database.execSQL("ALTER TABLE invoices ADD COLUMN tdsAmount REAL NOT NULL DEFAULT 0.0")
+            }
+        }
+
+        val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Create clients table
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS clients (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL DEFAULT '',
+                        phone TEXT NOT NULL DEFAULT '',
+                        address TEXT NOT NULL DEFAULT '',
+                        gstin TEXT NOT NULL DEFAULT '',
+                        panNumber TEXT NOT NULL DEFAULT '',
+                        notes TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL
+                    )
+                """)
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_clients_userId ON clients(userId)")
+                // Add clientId to invoices
+                database.execSQL("ALTER TABLE invoices ADD COLUMN clientId INTEGER")
+            }
+        }
+
+        val MIGRATION_17_18 = object : androidx.room.migration.Migration(17, 18) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Add streak fields to user_accounts
+                database.execSQL("ALTER TABLE user_accounts ADD COLUMN currentStreak INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE user_accounts ADD COLUMN longestStreak INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE user_accounts ADD COLUMN lastLogDate INTEGER")
+            }
+        }
+        
+        val MIGRATION_18_19 = object : androidx.room.migration.Migration(18, 19) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Create debts table
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS debts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        currentBalance REAL NOT NULL,
+                        interestRate REAL NOT NULL,
+                        minimumPayment REAL NOT NULL,
+                        dueDay INTEGER NOT NULL,
+                        strategy TEXT NOT NULL DEFAULT 'AVALANCHE',
+                        createdAt INTEGER NOT NULL
+                    )
+                """)
+            }
+        }
+        
+        val MIGRATION_19_20 = object : androidx.room.migration.Migration(19, 20) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Create holdings table
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS holdings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        quantity REAL NOT NULL,
+                        averageBuyPrice REAL NOT NULL,
+                        currentMarketPrice REAL NOT NULL,
+                        investedDate INTEGER NOT NULL,
+                        notes TEXT NOT NULL DEFAULT ''
+                    )
+                """)
+            }
+        }
+        
+        val MIGRATION_20_21 = object : androidx.room.migration.Migration(20, 21) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Add isTaxDeductible to categories table
+                database.execSQL("ALTER TABLE categories ADD COLUMN isTaxDeductible INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        
+        val MIGRATION_21_22 = object : androidx.room.migration.Migration(21, 22) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Create recurring_patterns table for Subscription Detective feature
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS recurring_patterns (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL,
+                        merchantName TEXT NOT NULL,
+                        averageAmount REAL NOT NULL,
+                        frequency TEXT NOT NULL,
+                        intervalDays INTEGER NOT NULL,
+                        occurrenceCount INTEGER NOT NULL,
+                        lastTransactionDate TEXT NOT NULL,
+                        nextExpectedDate TEXT NOT NULL,
+                        confidenceScore REAL NOT NULL,
+                        isConfirmedSubscription INTEGER NOT NULL DEFAULT 0,
+                        isDismissed INTEGER NOT NULL DEFAULT 0,
+                        categoryId INTEGER
+                    )
+                """)
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_recurring_patterns_userId_merchantName ON recurring_patterns(userId, merchantName)")
+            }
+        }
+        
+        val MIGRATION_22_23 = object : androidx.room.migration.Migration(22, 23) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Add type column to recurring_patterns
+                database.execSQL("ALTER TABLE recurring_patterns ADD COLUMN type TEXT NOT NULL DEFAULT 'EXPENSE'")
+            }
+        }
+        val MIGRATION_23_24 = object : androidx.room.migration.Migration(23, 24) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Add isEssential column to categories
+                database.execSQL("ALTER TABLE categories ADD COLUMN isEssential INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_24_25 = object : androidx.room.migration.Migration(24, 25) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE transactions ADD COLUMN linkedGoalId INTEGER DEFAULT NULL")
             }
         }
     }

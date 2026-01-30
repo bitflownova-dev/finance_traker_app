@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import com.bitflow.finance.domain.repository.TransactionRepository
+import com.bitflow.finance.domain.model.ActivityType
+import kotlinx.coroutines.flow.combine
 import javax.inject.Inject
 
 import java.time.Instant
@@ -17,17 +20,27 @@ import java.util.Locale
 
 @HiltViewModel
 class BitflowViewModel @Inject constructor(
-    repository: InvoiceRepository
+    invoiceRepository: InvoiceRepository,
+    transactionRepository: TransactionRepository
 ) : ViewModel() {
 
-    val uiState: StateFlow<BitflowUiState> = repository.getAllInvoices()
-        .map { invoices ->
+    val uiState: StateFlow<BitflowUiState> = combine(
+        invoiceRepository.getAllInvoices(),
+        transactionRepository.getAllTransactions()
+    ) { invoices, transactions ->
             val totalRevenue = invoices.sumOf { it.amount }
             val paidAmount = invoices.filter { it.isPaid }.sumOf { it.amount }
             val unpaidAmount = invoices.filter { !it.isPaid }.sumOf { it.amount }
             val totalInvoices = invoices.size
             val paidInvoicesCount = invoices.count { it.isPaid }
             val unpaidInvoicesCount = invoices.count { !it.isPaid }
+
+            // Calculate Business Expenses (filtered by repo context)
+            val businessExpenses = transactions
+                .filter { it.type == ActivityType.EXPENSE }
+                .sumOf { it.amount }
+                
+            val netProfit = totalRevenue - businessExpenses
 
             // Calculate monthly revenue for the last 6 months
             val monthlyRevenue = invoices
@@ -70,7 +83,9 @@ class BitflowViewModel @Inject constructor(
                 totalInvoices = totalInvoices,
                 paidInvoicesCount = paidInvoicesCount,
                 unpaidInvoicesCount = unpaidInvoicesCount,
-                monthlyRevenue = chartData
+                monthlyRevenue = chartData,
+                totalExpenses = businessExpenses,
+                netProfit = netProfit
             )
         }
         .stateIn(
@@ -87,5 +102,7 @@ data class BitflowUiState(
     val totalInvoices: Int = 0,
     val paidInvoicesCount: Int = 0,
     val unpaidInvoicesCount: Int = 0,
-    val monthlyRevenue: List<Pair<String, Float>> = emptyList()
+    val monthlyRevenue: List<Pair<String, Float>> = emptyList(),
+    val totalExpenses: Double = 0.0,
+    val netProfit: Double = 0.0
 )

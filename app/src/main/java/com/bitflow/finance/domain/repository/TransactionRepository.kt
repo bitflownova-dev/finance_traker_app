@@ -51,10 +51,19 @@ interface TransactionRepository {
     suspend fun getTodayExpenses(): Double
     suspend fun getRecentTransactions(limit: Int): Flow<List<Activity>>
     
+    // Subscription detection - get raw TransactionEntity for pattern analysis
+    suspend fun getTransactionsForSubscriptionDetection(startDate: LocalDate): List<com.bitflow.finance.data.local.entity.TransactionEntity>
+    
     // Performance optimization methods
     suspend fun getAllTransactionsForDeduplication(accountId: Long): List<Activity>
     suspend fun calculateAccountBalance(accountId: Long, initialBalance: Double): Double
     
     // Get the latest transaction balance from statements
     suspend fun getLatestTransactionBalance(accountId: Long): Double?
+
+    // Tax Helper
+    fun getTaxDeductibleTransactions(startDate: LocalDate, endDate: LocalDate): Flow<List<Activity>>
+
+    // Audit Logs
+    fun getAuditLogs(transactionId: Long): Flow<List<com.bitflow.finance.data.local.entity.TransactionAuditLogEntity>>
 }

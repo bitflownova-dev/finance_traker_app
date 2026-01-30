@@ -32,4 +32,15 @@ interface CategoryDao {
     
     @Query("SELECT * FROM categories WHERE id = :categoryId AND (userId IS NULL OR userId = :userId)")
     suspend fun getCategoryById(categoryId: Long, userId: String): CategoryEntity?
+    
+    @Query("SELECT * FROM categories WHERE (userId IS NULL OR userId = :userId) AND isHidden = 0 AND monthlyBudget IS NOT NULL ORDER BY name ASC")
+    fun getCategoriesWithBudget(userId: String): Flow<List<CategoryEntity>>
+    
+    @Query("UPDATE categories SET monthlyBudget = :budget WHERE id = :categoryId")
+    suspend fun updateBudget(categoryId: Long, budget: Double?)
+    @Query("SELECT * FROM categories")
+    suspend fun getAllCategoriesRaw(): List<CategoryEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCategoryRaw(category: CategoryEntity)
 }

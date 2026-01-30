@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.bitflow.finance.ui.screens.home.TransactionItem
+import com.bitflow.finance.ui.components.TransactionItem
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -68,8 +68,6 @@ fun TransactionsScreen(
                     Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)) {
                         TransactionItem(
                             transaction = transaction,
-                            currencySymbol = "₹", // TODO: Inject settings
-                            isPrivacyMode = false, // TODO: Inject settings
                             onClick = { onTransactionClick(transaction.id) }
                         )
                     }

@@ -25,7 +25,9 @@ data class Activity(
     val updatedAt: LocalDateTime = LocalDateTime.now(),
     // Auto-learning fields
     val isAutoCategorized: Boolean = false,
-    val confidenceScore: Float? = null
+    val confidenceScore: Float? = null,
+    val context: AppMode = AppMode.PERSONAL,
+    val linkedGoalId: Long? = null // Phase 4: Intent-Based Finance
 )
 
 // Legacy type alias for backward compatibility during migration

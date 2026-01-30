@@ -4,6 +4,8 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.bitflow.finance.domain.model.AccountType
 
+import com.bitflow.finance.domain.model.AppMode
+
 @Entity(tableName = "accounts")
 data class AccountEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -14,5 +16,6 @@ data class AccountEntity(
     val icon: String,
     val initialBalance: Double,
     val currentBalance: Double,
-    val currency: String = "₹"
+    val currency: String = "₹",
+    val context: AppMode = AppMode.PERSONAL // PERSONAL or BUSINESS
 )

@@ -14,10 +14,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -52,6 +56,7 @@ fun TransactionDetailScreen(
     var showCategoryDialog by remember { mutableStateOf(false) }
     var showAttachDialog by remember { mutableStateOf(false) }
     var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var showHistorySheet by remember { mutableStateOf(false) }
 
     // Auto-learning Snackbar
     LaunchedEffect(uiState.showLearningPrompt) {
@@ -157,6 +162,14 @@ fun TransactionDetailScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    IconButton(onClick = { showHistorySheet = true }) {
+                        Icon(Icons.Outlined.History, contentDescription = "History")
+                    }
+                    IconButton(onClick = { /* TODO: existing actions if any */ }) {
+                        Icon(Icons.Outlined.Share, contentDescription = "Share") // Placeholder/Example
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -247,11 +260,20 @@ fun TransactionDetailScreen(
                                     onClick = { showCategoryDialog = true }
                                 )
 
-                                if (transaction.reference != null) {
+                                    detailitemlinkStart = 66
                                     DetailItem(
                                         icon = Icons.Outlined.Receipt,
                                         label = "Reference", 
                                         value = transaction.reference
+                                    )
+                                }
+                                
+                                // Linked Goal (Phase 4)
+                                if (uiState.linkedGoal != null) {
+                                    DetailItem(
+                                        icon = Icons.Default.Flag, // Or Target icon if available
+                                        label = "Linked Goal", 
+                                        value = "${uiState.linkedGoal!!.iconEmoji} ${uiState.linkedGoal!!.name}"
                                     )
                                 }
                             }
@@ -305,6 +327,81 @@ fun TransactionDetailScreen(
                 }
             } else {
                 Text("Transaction not found", modifier = Modifier.align(Alignment.Center))
+            }
+        }
+    }
+        }
+    }
+
+    // Audit Log Bottom Sheet
+    if (showHistorySheet) {
+        ModalBottomSheet(onDismissRequest = { showHistorySheet = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    "Transaction History",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                if (uiState.auditLogs.isEmpty()) {
+                    Text("No history available for this transaction.", modifier = Modifier.padding(vertical = 16.dp))
+                } else {
+                    uiState.auditLogs.forEach { log ->
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = log.action.name,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = try {
+                                            java.time.LocalDateTime.parse(log.timestamp).format(java.time.format.DateTimeFormatter.ofPattern("dd MMM, HH:mm"))
+                                        } catch (e: Exception) {
+                                             log.timestamp
+                                        },
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(4.dp))
+                                
+                                if (log.action == com.bitflow.finance.data.local.entity.AuditAction.UPDATE) {
+                                    Text(
+                                        text = "Changed ${log.fieldName} from '${log.oldValue}' to '${log.newValue}'",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                } else if (log.action == com.bitflow.finance.data.local.entity.AuditAction.CREATE) {
+                                     Text(
+                                        text = log.newValue ?: "Created",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                } else {
+                                     Text(
+                                        text = log.oldValue ?: "Deleted",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }

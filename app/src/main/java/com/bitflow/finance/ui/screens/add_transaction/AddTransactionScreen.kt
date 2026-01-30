@@ -9,6 +9,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -58,8 +60,8 @@ fun AddTransactionScreen(
     ) { uri: Uri? ->
         uri?.let { viewModel.setBillPhoto(it.toString()) }
     }
-) {
-    val uiState by viewModel.uiState.collectAsState()
+
+    // val uiState by viewModel.uiState.collectAsState() removed duplicate
 
     LaunchedEffect(uiState.saved) {
         if (uiState.saved) {
@@ -78,6 +80,37 @@ fun AddTransactionScreen(
                     }
                 },
                 actions = {
+                    // Start thinking/listening state
+                    var isListening by remember { mutableStateOf(false) }
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    
+                    if (isListening) {
+                        LaunchedEffect(Unit) {
+                            com.bitflow.finance.util.VoiceInputHelper.startListening(context).collect { result ->
+                                when (result) {
+                                    is com.bitflow.finance.util.VoiceInputHelper.VoiceResult.Success -> {
+                                        viewModel.processVoiceInput(result.rawText)
+                                        isListening = false
+                                    }
+                                    is com.bitflow.finance.util.VoiceInputHelper.VoiceResult.Error -> {
+                                        isListening = false
+                                        // TODO: Show toast error
+                                    }
+                                    else -> {} // processing
+                                }
+                            }
+                        }
+                    }
+
+                    // Microphone Button
+                    IconButton(onClick = { isListening = !isListening }) {
+                        Icon(
+                            imageVector = if (isListening) Icons.Default.Mic else Icons.Default.MicNone,
+                            contentDescription = "Voice Input",
+                            tint = if (isListening) Color.Red else MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+
                     // Bill Photo Button
                     IconButton(onClick = { galleryLauncher.launch("image/*") }) {
                         Icon(
@@ -131,6 +164,36 @@ fun AddTransactionScreen(
                 ),
                 color = MaterialTheme.colorScheme.onBackground
             )
+
+            // Goal Selector (Phase 4)
+            if (uiState.savingsGoals.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = uiState.selectedGoal == null,
+                            onClick = { viewModel.selectGoal(null) },
+                            label = { Text("No Goal") },
+                            leadingIcon = { Icon(Icons.Default.Clear, contentDescription = null, Modifier.size(16.dp)) }
+                        )
+                    }
+                    items(uiState.savingsGoals) { goal ->
+                        FilterChip(
+                            selected = uiState.selectedGoal?.id == goal.id,
+                            onClick = { viewModel.selectGoal(goal) },
+                            label = { Text(goal.name) },
+                            leadingIcon = { Text(goal.iconEmoji) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(android.graphics.Color.parseColor(goal.colorHex)).copy(alpha = 0.2f),
+                                selectedLabelColor = Color(android.graphics.Color.parseColor(goal.colorHex))
+                            )
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 

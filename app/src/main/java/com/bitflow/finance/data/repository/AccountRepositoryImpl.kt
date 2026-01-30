@@ -11,15 +11,21 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
+import com.bitflow.finance.domain.repository.SettingsRepository
+import kotlinx.coroutines.flow.combine
+import com.bitflow.finance.domain.model.AppMode
 
 class AccountRepositoryImpl @Inject constructor(
     private val dao: AccountDao,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val settingsRepository: SettingsRepository
 ) : AccountRepository {
 
     override fun getAllAccounts(): Flow<List<Account>> {
-        return authRepository.currentUserId.flatMapLatest { userId ->
-            dao.getAllAccounts(userId).map { entities -> entities.map { it.toDomain() } }
+        return combine(authRepository.currentUserId, settingsRepository.appMode) { userId, mode ->
+            Pair(userId, mode)
+        }.flatMapLatest { (userId, mode) ->
+            dao.getAllAccounts(userId, mode).map { entities -> entities.map { it.toDomain() } }
         }
     }
 
@@ -52,7 +58,8 @@ class AccountRepositoryImpl @Inject constructor(
             icon = icon,
             initialBalance = initialBalance,
             currentBalance = currentBalance,
-            currency = currency
+            currency = currency,
+            context = context
         )
     }
 
@@ -66,7 +73,8 @@ class AccountRepositoryImpl @Inject constructor(
             icon = icon,
             initialBalance = initialBalance,
             currentBalance = currentBalance,
-            currency = currency
+            currency = currency,
+            context = context
         )
     }
 }

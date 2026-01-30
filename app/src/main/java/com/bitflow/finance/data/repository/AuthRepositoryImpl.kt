@@ -1,25 +1,25 @@
 package com.bitflow.finance.data.repository
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import android.content.SharedPreferences
+import android.util.Log
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.bitflow.finance.data.local.dao.UserAccountDao
 import com.bitflow.finance.data.local.entity.UserAccountEntity
 import com.bitflow.finance.domain.repository.AuthRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
-import android.util.Log
-
-val Context.authDataStore: DataStore<Preferences> by preferencesDataStore(name = "auth_prefs")
 
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
@@ -27,38 +27,65 @@ class AuthRepositoryImpl @Inject constructor(
     private val userAccountDao: UserAccountDao
 ) : AuthRepository {
 
-    private val USER_ID_KEY = stringPreferencesKey("auth_current_user_id") // Current logged in userId
-    private val DISPLAY_NAME_KEY = stringPreferencesKey("auth_display_name") // Display name for UI
-    private val IS_LOGGED_IN_KEY = booleanPreferencesKey("auth_is_logged_in")
-    private val IS_ADMIN_KEY = booleanPreferencesKey("auth_is_admin")
+    // Thread-safe state for reactive session data
+    private val _currentUserId = MutableStateFlow("default_user")
+    private val _displayName = MutableStateFlow<String?>(null)
+    private val _isLoggedIn = MutableStateFlow(false)
+    private val _isAdmin = MutableStateFlow(false)
 
-    // Hardcoded Bitflow Admin Credentials
-    private val ADMIN_ID = "713116"
-    private val ADMIN_PASS_PLAIN = "g!M@A#P$2025?."
-    private val ADMIN_PASS_HASH = "84820998db407209e3ba9821eb59f24be14687fff7575920bfacc8455d3dd2b7"
-    private val ADMIN_USER_ID = "bitflow_admin_713116"
+    // Encrypted SharedPreferences for session persistence
+    private val encryptedPrefs: SharedPreferences by lazy {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
 
-    override val currentUser: Flow<String?> = context.authDataStore.data
-        .map { preferences ->
-            if (preferences[IS_LOGGED_IN_KEY] == true) {
-                preferences[DISPLAY_NAME_KEY]
-            } else {
-                null
-            }
+        EncryptedSharedPreferences.create(
+            context,
+            "auth_prefs_encrypted",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    private companion object {
+        const val PREF_USER_ID = "auth_user_id"
+        const val PREF_DISPLAY_NAME = "auth_display_name"
+        const val PREF_IS_LOGGED_IN = "auth_is_logged_in"
+        const val PREF_IS_ADMIN = "auth_is_admin"
+        const val SALT_LENGTH = 16 // 128 bits
+    }
+
+    init {
+        // Load session from encrypted storage on init
+        loadSessionFromStorage()
+    }
+
+    private fun loadSessionFromStorage() {
+        _isLoggedIn.value = encryptedPrefs.getBoolean(PREF_IS_LOGGED_IN, false)
+        _isAdmin.value = encryptedPrefs.getBoolean(PREF_IS_ADMIN, false)
+        _currentUserId.value = encryptedPrefs.getString(PREF_USER_ID, "default_user") ?: "default_user"
+        _displayName.value = encryptedPrefs.getString(PREF_DISPLAY_NAME, null)
+    }
+
+    private fun saveSessionToStorage() {
+        encryptedPrefs.edit().apply {
+            putBoolean(PREF_IS_LOGGED_IN, _isLoggedIn.value)
+            putBoolean(PREF_IS_ADMIN, _isAdmin.value)
+            putString(PREF_USER_ID, _currentUserId.value)
+            putString(PREF_DISPLAY_NAME, _displayName.value)
+            apply()
         }
+    }
 
-    override val isBitflowAdmin: Flow<Boolean> = context.authDataStore.data
-        .map { preferences ->
-            preferences[IS_ADMIN_KEY] ?: false
-        }
+    override val currentUser: Flow<String?> = _displayName
 
-    override val currentUserId: Flow<String> = context.authDataStore.data
-        .map { preferences ->
-            preferences[USER_ID_KEY] ?: "default_user"
-        }
+    override val isBitflowAdmin: Flow<Boolean> = _isAdmin
+
+    override val currentUserId: Flow<String> = _currentUserId
 
     override suspend fun checkUsernameAvailable(username: String): Boolean {
-        val user = userAccountDao.getUserByUsername(username)
+        val user = userAccountDao.getUserByUsername(username.trim().lowercase())
         return user == null
     }
 
@@ -73,37 +100,40 @@ class AuthRepositoryImpl @Inject constructor(
         val cleanDisplayName = displayName.trim()
         val cleanPassword = password.trim()
         val cleanAnswer = securityAnswer.trim().lowercase()
-        
-        return try {
-            if (cleanUsername == ADMIN_ID) {
-                return Result.failure(Exception("Cannot use restricted username"))
-            }
 
+        return try {
             // Check if username already exists
             val existingUser = userAccountDao.getUserByUsername(cleanUsername)
             if (existingUser != null) {
                 return Result.failure(Exception("Username already taken. Please choose another."))
             }
 
-            val passwordHash = hashPassword(cleanPassword)
-            val answerHash = hashPassword(cleanAnswer)
-            val uniqueUserId = java.util.UUID.randomUUID().toString()
-            
+            // Generate salt and hash password
+            val passwordSalt = generateSalt()
+            val passwordHash = hashPasswordWithSalt(cleanPassword, passwordSalt)
+            val combinedPasswordHash = "$passwordSalt:$passwordHash" // Store salt with hash
+
+            val answerSalt = generateSalt()
+            val answerHash = hashPasswordWithSalt(cleanAnswer, answerSalt)
+            val combinedAnswerHash = "$answerSalt:$answerHash"
+
+            val uniqueUserId = UUID.randomUUID().toString()
+
             val newUser = UserAccountEntity(
                 userId = uniqueUserId,
                 username = cleanUsername,
                 displayName = cleanDisplayName,
-                passwordHash = passwordHash,
+                passwordHash = combinedPasswordHash,
                 securityQuestion = securityQuestion,
-                securityAnswerHash = answerHash,
+                securityAnswerHash = combinedAnswerHash,
                 createdAt = System.currentTimeMillis(),
                 lastLoginAt = System.currentTimeMillis(),
                 isActive = true
             )
-            
+
             userAccountDao.insertUser(newUser)
-            Log.d("AuthRepo", "User created: $cleanUsername (display: $cleanDisplayName) with UUID: $uniqueUserId")
-            
+            Log.d("AuthRepo", "User created: $cleanUsername with UUID: ${uniqueUserId.take(8)}...")
+
             Result.success(newUser)
         } catch (e: Exception) {
             Result.failure(e)
@@ -113,42 +143,22 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun login(username: String, password: String): Result<UserAccountEntity?> {
         val cleanUsername = username.trim().lowercase()
         val cleanPassword = password.trim()
-        val normalizedPassword = normalizePassword(cleanPassword)
-        val inputHash = hashPassword(normalizedPassword)
 
-        // Check for Admin Login
-        if (cleanUsername == ADMIN_ID && (normalizedPassword == ADMIN_PASS_PLAIN || inputHash == ADMIN_PASS_HASH)) {
-            context.authDataStore.edit { preferences ->
-                preferences[IS_LOGGED_IN_KEY] = true
-                preferences[IS_ADMIN_KEY] = true
-                preferences[DISPLAY_NAME_KEY] = "Bitflow Admin"
-                preferences[USER_ID_KEY] = ADMIN_USER_ID
-            }
-            Log.d("AuthRepo", "Admin login success")
-            
-            val adminAccount = UserAccountEntity(
-                userId = ADMIN_USER_ID,
-                username = ADMIN_ID,
-                displayName = "Bitflow Admin",
-                passwordHash = ADMIN_PASS_HASH,
-                securityQuestion = "",
-                securityAnswerHash = "",
-                createdAt = 0,
-                lastLoginAt = System.currentTimeMillis(),
-                isActive = true
-            )
-            return Result.success(adminAccount)
-        }
-
-        // Check for User Login
         return try {
-            val user = userAccountDao.authenticateUser(cleanUsername, inputHash)
-            
+            // Fetch user by username
+            val user = userAccountDao.getUserByUsername(cleanUsername)
+
             if (user != null) {
-                Log.d("AuthRepo", "User found: ${user.username}")
-                Result.success(user)
+                // Verify password using salted hash
+                val storedHash = user.passwordHash
+                if (verifyPasswordWithSalt(cleanPassword, storedHash)) {
+                    Log.d("AuthRepo", "User authenticated: ${user.username}")
+                    Result.success(user)
+                } else {
+                    Result.success(null) // Wrong password
+                }
             } else {
-                Result.success(null) // User not found or wrong password
+                Result.success(null) // User not found
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -161,12 +171,11 @@ class AuthRepositoryImpl @Inject constructor(
     ): Result<UserAccountEntity> {
         val cleanUsername = username.trim().lowercase()
         val cleanAnswer = securityAnswer.trim().lowercase()
-        val answerHash = hashPassword(cleanAnswer)
-        
+
         return try {
-            val user = userAccountDao.verifySecurityAnswer(cleanUsername, answerHash)
-            
-            if (user != null) {
+            val user = userAccountDao.getUserByUsername(cleanUsername)
+
+            if (user != null && verifyPasswordWithSalt(cleanAnswer, user.securityAnswerHash)) {
                 Result.success(user)
             } else {
                 Result.failure(Exception("Incorrect security answer"))
@@ -178,18 +187,19 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun loginWithAccount(account: UserAccountEntity): Result<Unit> {
         return try {
-            // Update last login time
+            // Update last login time in DB
             userAccountDao.updateLastLogin(account.userId, System.currentTimeMillis())
-            
-            // Save to DataStore
-            context.authDataStore.edit { preferences ->
-                preferences[IS_LOGGED_IN_KEY] = true
-                preferences[IS_ADMIN_KEY] = account.userId == ADMIN_USER_ID
-                preferences[DISPLAY_NAME_KEY] = account.displayName
-                preferences[USER_ID_KEY] = account.userId
-            }
-            
-            Log.d("AuthRepo", "Logged in as: ${account.displayName} (${account.userId.take(8)})")
+
+            // Update in-memory state
+            _isLoggedIn.value = true
+            _isAdmin.value = false // No admin backdoor
+            _displayName.value = account.displayName
+            _currentUserId.value = account.userId
+
+            // Persist to encrypted storage
+            saveSessionToStorage()
+
+            Log.d("AuthRepo", "Logged in as: ${account.displayName}")
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -197,51 +207,57 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun logout() {
-        context.authDataStore.edit { preferences ->
-            preferences[IS_LOGGED_IN_KEY] = false
-            preferences[IS_ADMIN_KEY] = false
-        }
+        _isLoggedIn.value = false
+        _isAdmin.value = false
+        _displayName.value = null
+        _currentUserId.value = "default_user"
+        saveSessionToStorage()
     }
 
     override suspend fun checkAuth(): Boolean {
-        val preferences = context.authDataStore.data.first()
-        return preferences[IS_LOGGED_IN_KEY] ?: false
+        return _isLoggedIn.value
     }
 
-    private fun hashPassword(password: String): String {
+    // --- Secure Hashing Utilities ---
+
+    private fun generateSalt(): String {
+        val random = SecureRandom()
+        val salt = ByteArray(SALT_LENGTH)
+        random.nextBytes(salt)
+        return salt.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun hashPasswordWithSalt(password: String, salt: String): String {
+        val saltedPassword = salt + password
+        val bytes = saltedPassword.toByteArray(Charsets.UTF_8)
+        val md = MessageDigest.getInstance("SHA-256")
+        val digest = md.digest(bytes)
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun verifyPasswordWithSalt(inputPassword: String, storedCombinedHash: String): Boolean {
+        return try {
+            val parts = storedCombinedHash.split(":")
+            if (parts.size != 2) {
+                // Fallback for old un-salted hashes (backward compatibility)
+                val inputHash = hashPasswordLegacy(inputPassword)
+                inputHash == storedCombinedHash
+            } else {
+                val salt = parts[0]
+                val storedHash = parts[1]
+                val inputHash = hashPasswordWithSalt(inputPassword, salt)
+                inputHash == storedHash
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // Legacy hash for backwards compatibility with existing users
+    private fun hashPasswordLegacy(password: String): String {
         val bytes = password.toByteArray()
         val md = MessageDigest.getInstance("SHA-256")
         val digest = md.digest(bytes)
-        return digest.fold("") { str, it -> str + "%02x".format(it.toInt() and 0xff) }
-    }
-
-    private fun normalizePassword(input: String): String {
-        return input
-            .trim()
-            .map { ch ->
-                when (ch) {
-                    '！' -> '!'
-                    '＠' -> '@'
-                    '＃' -> '#'
-                    '＄' -> '$'
-                    '？' -> '?'
-                    '．', '。' -> '.'
-                    'Ｐ', 'ℙ' -> 'P'
-                    'Ａ' -> 'A'
-                    'Ｍ' -> 'M'
-                    '０' -> '0'
-                    '１' -> '1'
-                    '２' -> '2'
-                    '３' -> '3'
-                    '４' -> '4'
-                    '５' -> '5'
-                    '６' -> '6'
-                    '７' -> '7'
-                    '８' -> '8'
-                    '９' -> '9'
-                    else -> ch
-                }
-            }
-            .joinToString("")
+        return digest.joinToString("") { "%02x".format(it) }
     }
 }

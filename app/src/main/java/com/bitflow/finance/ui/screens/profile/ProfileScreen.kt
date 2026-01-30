@@ -1,127 +1,199 @@
 package com.bitflow.finance.ui.screens.profile
 
+import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.AccountBalance
-import androidx.compose.material.icons.outlined.Analytics
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-
-import androidx.compose.material.icons.outlined.Logout
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import com.bitflow.finance.R
+import com.bitflow.finance.domain.model.FinancialPersona
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    onBackClick: () -> Unit,
-    onSettingsClick: () -> Unit,
-    onAccountsClick: () -> Unit,
-    onInsightsClick: () -> Unit,
-    onImportClick: () -> Unit,
-    viewModel: ProfileViewModel = hiltViewModel()
+    viewModel: ProfileViewModel = hiltViewModel(),
+    onBackClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    onAccountsClick: () -> Unit = {},
+    onInsightsClick: () -> Unit = {},
+    onImportClick: () -> Unit = {}
 ) {
-    val currentUser by viewModel.currentUser.collectAsState()
-    
+    val uiState by viewModel.uiState.collectAsState()
+    val scrollState = rememberScrollState()
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Profile", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         }
-    ) { paddingValues ->
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(24.dp)
+                .padding(padding)
+                .verticalScroll(scrollState)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Profile Header
-            ProfileHeader(userName = currentUser)
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            // Menu Items
-            Text(
-                text = "General",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 12.dp)
+            // 1. User Info Header
+            UserHeader(
+                name = uiState.fullName,
+                email = uiState.email,
+                photoUrl = uiState.photoUrl,
+                persona = uiState.persona // NEW
             )
+
+            // 2. Persona Card (Behavior Intelligence) - NEW
+            PersonaCard(uiState.persona)
+
+            // 3. Menu Options
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                MenuOptionItem(
+                    icon = Icons.Default.AccountBalance,
+                    title = "My Accounts",
+                    subtitle = "Manage bank accounts and cards",
+                    onClick = onAccountsClick
+                )
+                MenuOptionItem(
+                    icon = Icons.Default.CloudUpload,
+                    title = "Import Statements",
+                    subtitle = "Parse PDF statements automatically",
+                    onClick = onImportClick
+                )
+                 MenuOptionItem(
+                    icon = Icons.Default.Settings,
+                    title = "Settings",
+                    subtitle = "App preferences, security, categories",
+                    onClick = onSettingsClick
+                )
+            }
             
-            ProfileMenuItem(
-                icon = Icons.Outlined.AccountBalance,
-                title = "Accounts",
-                subtitle = "Manage your bank accounts",
-                onClick = onAccountsClick
-            )
-            
-            ProfileMenuItem(
-                icon = Icons.Default.Upload,
-                title = "Import Statement",
-                subtitle = "Upload bank statements",
-                onClick = onImportClick
-            )
-            
-            ProfileMenuItem(
-                icon = Icons.Outlined.Analytics,
-                title = "Insights",
-                subtitle = "View financial analysis",
-                onClick = onInsightsClick
-            )
-
-            ProfileMenuItem(
-                icon = Icons.Outlined.Settings,
-                title = "Settings",
-                subtitle = "App preferences and configuration",
-                onClick = onSettingsClick
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
+            // 4. Logout
             Button(
                 onClick = { viewModel.logout() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.error
-                ),
-                shape = RoundedCornerShape(16.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Outlined.Logout, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
+                Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Log Out")
+            }
+        }
+    }
+}
+
+@Composable
+fun UserHeader(name: String, email: String, photoUrl: String?, persona: FinancialPersona?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // Avatar
+        Box(contentAlignment = Alignment.BottomEnd) {
+            if (photoUrl != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current).data(data = Uri.parse(photoUrl)).build()
+                    ),
+                    contentDescription = "Profile Photo",
+                    modifier = Modifier.size(80.dp).clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Surface(
+                    modifier = Modifier.size(80.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = name.take(1).uppercase(),
+                            style = MaterialTheme.typography.headlineLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+            // Edit Icon
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable { /* TODO: Edit Profile */ },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(14.dp))
+            }
+        }
+        
+        Spacer(Modifier.width(16.dp))
+        
+        Column {
+            Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(email, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            
+            // Mini Badge
+            if (persona != null) {
+                Spacer(Modifier.height(4.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = CircleShape
+                ) {
+                    Text(
+                        text = "${persona.emoji} ${persona.title}",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PersonaCard(persona: FinancialPersona?) {
+    if (persona == null || persona == FinancialPersona.UNCATEGORIZED) return
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f))
+    ) {
+        Row(Modifier.padding(16.dp)) {
+            Text(persona.emoji, style = MaterialTheme.typography.displayMedium)
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(persona.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Logout",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
+                    persona.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -129,93 +201,33 @@ fun ProfileScreen(
 }
 
 @Composable
-fun ProfileHeader(userName: String?) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(100.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = null,
-                modifier = Modifier.size(50.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            text = userName ?: "User",
-            style = MaterialTheme.typography.headlineMedium
-        )
-        
-        Text(
-            text = "Welcome back to Bitflow",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-fun ProfileMenuItem(
+fun MenuOptionItem(
     icon: ImageVector,
     title: String,
     subtitle: String,
     onClick: () -> Unit
 ) {
-    Surface(
-        onClick = onClick,
-        color = Color.Transparent,
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .padding(vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.size(48.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        }
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
     }
 }

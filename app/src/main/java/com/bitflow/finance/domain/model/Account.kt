@@ -15,5 +15,6 @@ data class Account(
     val icon: String, // Icon name or resource id identifier
     val initialBalance: Double,
     val currentBalance: Double = initialBalance,
-    val currency: String = "₹" // Account-specific currency
+    val currency: String = "₹", // Account-specific currency
+    val context: AppMode = AppMode.PERSONAL
 )

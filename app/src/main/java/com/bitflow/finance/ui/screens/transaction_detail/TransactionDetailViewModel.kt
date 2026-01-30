@@ -17,10 +17,12 @@ import javax.inject.Inject
 data class TransactionDetailUiState(
     val isLoading: Boolean = false,
     val transaction: Activity? = null,
+    val linkedGoal: com.bitflow.finance.domain.model.SavingsGoal? = null,
     val categories: List<Category> = emptyList(),
     val error: String? = null,
     val showLearningPrompt: Boolean = false,
-    val learningPromptMessage: String = ""
+    val learningPromptMessage: String = "",
+    val auditLogs: List<com.bitflow.finance.data.local.entity.TransactionAuditLogEntity> = emptyList()
 )
 
 @HiltViewModel
@@ -36,6 +38,10 @@ class TransactionDetailViewModel @Inject constructor(
 
     private var pendingRuleDescription: String? = null
     private var pendingRuleCategoryId: Long? = null
+    
+    // Inject Dao
+    @Inject lateinit var savingsGoalDao: com.bitflow.finance.data.local.dao.SavingsGoalDao
+    @Inject lateinit var authRepository: com.bitflow.finance.domain.repository.AuthRepository
 
     init {
         loadData()
@@ -46,11 +52,34 @@ class TransactionDetailViewModel @Inject constructor(
             try {
                 val transaction = repository.getTransactionById(transactionId)
                 
+                 // Fetch linked goal if exists
+                 var linkedGoal: com.bitflow.finance.domain.model.SavingsGoal? = null
+                 if (transaction?.linkedGoalId != null) {
+                     val userId = authRepository.currentUserId.first()
+                     val goalEntity = savingsGoalDao.getGoalById(transaction.linkedGoalId, userId)
+                     if (goalEntity != null) {
+                         linkedGoal = com.bitflow.finance.domain.model.SavingsGoal(
+                             id = goalEntity.id,
+                             name = goalEntity.name,
+                             targetAmount = goalEntity.targetAmount,
+                             currentAmount = goalEntity.currentAmount,
+                             deadline = goalEntity.deadline,
+                             iconEmoji = goalEntity.iconEmoji,
+                             colorHex = goalEntity.colorHex,
+                             isCompleted = goalEntity.isCompleted
+                         )
+                     }
+                 }
+                
+                val auditLogs = repository.getAuditLogs(transactionId).first()
+
                 repository.getAllCategories().collect { categories ->
                     _uiState.value = _uiState.value.copy(
                         transaction = transaction,
+                        linkedGoal = linkedGoal,
                         categories = categories.filter { !it.isHidden },
-                        isLoading = false
+                        isLoading = false,
+                        auditLogs = auditLogs
                     )
                 }
             } catch (e: Exception) {

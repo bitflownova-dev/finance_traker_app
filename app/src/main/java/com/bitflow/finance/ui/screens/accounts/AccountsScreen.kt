@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bitflow.finance.domain.model.Account
 import com.bitflow.finance.domain.model.AccountType
+import com.bitflow.finance.domain.model.AppMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,7 +33,9 @@ fun AccountsScreen(
     viewModel: AccountsViewModel = hiltViewModel()
 ) {
     val accounts by viewModel.accounts.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
+    val currentMode by viewModel.currentMode.collectAsState()
+    var showDialog by remember { mutableStateOf(false) }
+    var accountToEdit by remember { mutableStateOf<Account?>(null) }
 
     Scaffold(
         topBar = {
@@ -50,7 +53,10 @@ fun AccountsScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddDialog = true },
+                onClick = { 
+                    accountToEdit = null
+                    showDialog = true 
+                },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
@@ -96,25 +102,53 @@ fun AccountsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(accounts) { account ->
-                    AccountItem(account)
+                    AccountItem(
+                        account = account,
+                        onClick = {
+                            accountToEdit = account
+                            showDialog = true
+                        }
+                    )
                 }
             }
         }
     }
 
-    if (showAddDialog) {
-        AddAccountDialog(
-            onDismiss = { showAddDialog = false },
-            onConfirm = { name, type, balance, currency ->
-                viewModel.addAccount(name, type, balance, currency)
-                showAddDialog = false
+    if (showDialog) {
+        AccountDialog(
+            initialContext = currentMode,
+            existingAccount = accountToEdit,
+            onDismiss = { showDialog = false },
+            onConfirm = { name, type, balance, currency, context ->
+                if (accountToEdit == null) {
+                    viewModel.addAccount(name, type, balance, currency, context)
+                } else {
+                    viewModel.updateAccount(
+                        accountToEdit!!.copy(
+                            name = name,
+                            type = type,
+                            initialBalance = balance, // Update initial or current? Usually updating account updates details, but balance is tricky.
+                            // For simplicity, let's say we update the initial balance property, but current balance logic might be complex if we track transactions.
+                            // If we just want to update metadata (Context, Name, Type), we should preserve balance.
+                            // But usually user wants to correct balance.
+                            // Let's assume we update currentBalance too if it matches initial?
+                            // Or just update metadata and currency.
+                            // Let's update basic fields and Context. 
+                            // WARNING: Changing currency might break things if transactions exist.
+                            currency = currency,
+                            context = context
+                        )
+                    )
+                }
+                showDialog = false
             }
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AccountItem(account: Account) {
+fun AccountItem(account: Account, onClick: () -> Unit) {
     val accountColor = getAccountColor(account.name)
     val icon = when (account.type) {
         AccountType.BANK -> Icons.Outlined.AccountBalance
@@ -129,7 +163,8 @@ fun AccountItem(account: Account) {
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
@@ -204,21 +239,24 @@ private fun getAccountColor(accountName: String): Color {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddAccountDialog(
+fun AccountDialog(
+    initialContext: AppMode,
+    existingAccount: Account? = null,
     onDismiss: () -> Unit,
-    onConfirm: (String, AccountType, Double, String) -> Unit
+    onConfirm: (String, AccountType, Double, String, AppMode) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var balance by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf(AccountType.BANK) }
-    var selectedCurrency by remember { mutableStateOf("₹") }
+    var name by remember { mutableStateOf(existingAccount?.name ?: "") }
+    var balance by remember { mutableStateOf(existingAccount?.initialBalance?.toString() ?: "") }
+    var selectedType by remember { mutableStateOf(existingAccount?.type ?: AccountType.BANK) }
+    var selectedCurrency by remember { mutableStateOf(existingAccount?.currency ?: "₹") }
+    var selectedContext by remember { mutableStateOf(existingAccount?.context ?: initialContext) }
     var expanded by remember { mutableStateOf(false) }
     var currencyExpanded by remember { mutableStateOf(false) }
     val currencies = listOf("₹", "$", "€", "£", "¥")
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Account") },
+        title = { Text(if (existingAccount == null) "Add Account" else "Edit Account") },
         text = {
             Column {
                 OutlinedTextField(
@@ -237,6 +275,35 @@ fun AddAccountDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 
+                // Context Switcher
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                   FilterChip(
+                       selected = selectedContext == AppMode.PERSONAL,
+                       onClick = { selectedContext = AppMode.PERSONAL },
+                       label = { Text("Personal") },
+                       leadingIcon = {
+                           if (selectedContext == AppMode.PERSONAL) {
+                               Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                           }
+                       }
+                   )
+                   FilterChip(
+                       selected = selectedContext == AppMode.BUSINESS,
+                       onClick = { selectedContext = AppMode.BUSINESS },
+                       label = { Text("Business") },
+                       leadingIcon = {
+                           if (selectedContext == AppMode.BUSINESS) {
+                               Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                           }
+                       }
+                   )
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = { expanded = !expanded }
@@ -297,11 +364,11 @@ fun AddAccountDialog(
                 onClick = {
                     val balanceValue = balance.toDoubleOrNull() ?: 0.0
                     if (name.isNotBlank()) {
-                        onConfirm(name, selectedType, balanceValue, selectedCurrency)
+                        onConfirm(name, selectedType, balanceValue, selectedCurrency, selectedContext)
                     }
                 }
             ) {
-                Text("Add")
+                Text(if (existingAccount == null) "Add" else "Save")
             }
         },
         dismissButton = {

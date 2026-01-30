@@ -52,4 +52,10 @@ interface LearningRuleDao {
      */
     @Query("DELETE FROM learning_rules WHERE userId = :userId")
     suspend fun clearAllRules(userId: String)
+
+    @Query("SELECT * FROM learning_rules")
+    suspend fun getAllRulesRaw(): List<LearningRuleEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRuleRaw(rule: LearningRuleEntity)
 }

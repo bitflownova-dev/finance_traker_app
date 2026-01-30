@@ -11,6 +11,13 @@ import com.bitflow.finance.data.local.dao.TransactionDao
 import com.bitflow.finance.data.local.dao.UserAccountDao
 import com.bitflow.finance.data.local.dao.FriendDao
 import com.bitflow.finance.data.local.dao.SplitDao
+import com.bitflow.finance.data.local.dao.SavingsGoalDao
+import com.bitflow.finance.data.local.dao.BillReminderDao
+import com.bitflow.finance.data.local.dao.TransactionTemplateDao
+import com.bitflow.finance.data.local.dao.ClientDao
+import com.bitflow.finance.data.local.dao.DebtDao
+import com.bitflow.finance.data.local.dao.HoldingDao
+import com.bitflow.finance.data.local.dao.RecurringPatternDao
 import com.bitflow.finance.data.parser.UniversalStatementParser
 import com.bitflow.finance.data.parser.StatementParser
 import dagger.Module
@@ -41,7 +48,22 @@ object AppModule {
             AppDatabase.MIGRATION_6_7,
             AppDatabase.MIGRATION_7_8,
             AppDatabase.MIGRATION_8_9,
-            AppDatabase.MIGRATION_9_10
+            AppDatabase.MIGRATION_9_10,
+            AppDatabase.MIGRATION_10_11,
+            AppDatabase.MIGRATION_11_12,
+            AppDatabase.MIGRATION_12_13,
+            AppDatabase.MIGRATION_13_14,
+            AppDatabase.MIGRATION_14_15,
+            AppDatabase.MIGRATION_15_16,
+            AppDatabase.MIGRATION_16_17,
+            AppDatabase.MIGRATION_17_18,
+            AppDatabase.MIGRATION_18_19,
+            AppDatabase.MIGRATION_20_21,
+            AppDatabase.MIGRATION_21_22,
+            AppDatabase.MIGRATION_22_23,
+            AppDatabase.MIGRATION_23_24,
+            AppDatabase.MIGRATION_24_25,
+            AppDatabase.MIGRATION_25_26
         )
         .addCallback(object : androidx.room.RoomDatabase.Callback() {
             override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
@@ -77,6 +99,30 @@ object AppModule {
 
     @Provides
     fun provideSplitDao(database: AppDatabase): SplitDao = database.splitDao()
+
+    @Provides
+    fun provideSavingsGoalDao(database: AppDatabase): SavingsGoalDao = database.savingsGoalDao()
+
+    @Provides
+    fun provideBillReminderDao(database: AppDatabase): BillReminderDao = database.billReminderDao()
+
+    @Provides
+    fun provideTransactionTemplateDao(database: AppDatabase): TransactionTemplateDao = database.transactionTemplateDao()
+
+    @Provides
+    fun provideClientDao(database: AppDatabase): ClientDao = database.clientDao()
+
+    @Provides
+    fun provideDebtDao(database: AppDatabase): DebtDao = database.debtDao()
+
+    @Provides
+    fun provideHoldingDao(database: AppDatabase): HoldingDao = database.holdingDao()
+
+    @Provides
+    fun provideRecurringPatternDao(database: AppDatabase): RecurringPatternDao = database.recurringPatternDao()
+
+    @Provides
+    fun provideTransactionAuditDao(database: AppDatabase): com.bitflow.finance.data.local.dao.TransactionAuditDao = database.transactionAuditDao()
 
     @Provides
     fun provideStatementParser(@ApplicationContext context: Context): StatementParser {

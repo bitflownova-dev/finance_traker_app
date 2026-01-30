@@ -11,6 +11,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -20,17 +24,48 @@ import javax.inject.Inject
 class DailyPulseViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val subscriptionDetective: SubscriptionDetective,
-    private val settingsRepository: com.bitflow.finance.domain.repository.SettingsRepository
+    private val settingsRepository: com.bitflow.finance.domain.repository.SettingsRepository,
+    private val userAccountDao: com.bitflow.finance.data.local.dao.UserAccountDao,
+    private val authRepository: com.bitflow.finance.domain.repository.AuthRepository,
+    private val nudgeManagerUseCase: com.bitflow.finance.domain.usecase.NudgeManagerUseCase,
+    private val financialHealthScoreUseCase: com.bitflow.finance.domain.usecase.FinancialHealthScoreUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DailyPulseUiState())
     val uiState: StateFlow<DailyPulseUiState> = _uiState.asStateFlow()
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val streak: StateFlow<Int> = authRepository.currentUserId.flatMapLatest { userId ->
+        userAccountDao.getUserFlow(userId).map { user -> user?.currentStreak ?: 0 }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     init {
         loadUserName()
         loadAccountBalance()
         loadRecentActivities()
-        // Subscriptions detection removed for simpler startup
+        detectSubscriptions()
+        loadSmartNudge()
+        loadHealthScore()
+    }
+    
+    private fun loadHealthScore() {
+        viewModelScope.launch {
+            financialHealthScoreUseCase().collect { health ->
+                _uiState.update { it.copy(financialHealth = health) }
+            }
+        }
+    }
+
+    private fun loadSmartNudge() {
+        viewModelScope.launch {
+            authRepository.currentUserId.collect { userId ->
+                if (userId != "default_user") {
+                    nudgeManagerUseCase(userId).collect { nudge ->
+                        _uiState.update { it.copy(smartNudge = nudge) }
+                    }
+                }
+            }
+        }
     }
 
     private fun loadUserName() {
@@ -40,6 +75,111 @@ class DailyPulseViewModel @Inject constructor(
             }
         }
     }
+    
+    // ... existing ...
+
+    fun confirmSubscription(pattern: RecurringPattern) {
+        viewModelScope.launch {
+            // TODO: Save as confirmed subscription
+            // transactionRepository.confirmSubscription(pattern)
+            
+            // Remove from potential list
+            _uiState.value = _uiState.value.copy(
+                potentialSubscriptions = _uiState.value.potentialSubscriptions.filter { it != pattern }
+            )
+        }
+    }
+
+    fun dismissSubscription(pattern: RecurringPattern) {
+        viewModelScope.launch {
+            // Remove from list without saving
+            _uiState.value = _uiState.value.copy(
+                potentialSubscriptions = _uiState.value.potentialSubscriptions.filter { it != pattern }
+            )
+        }
+    }
+
+    fun deleteActivity(activityId: Long) {
+        viewModelScope.launch {
+            transactionRepository.deleteTransaction(activityId)
+            // TODO: Add undo support
+            // Balance will auto-refresh via Flow
+        }
+    }
+
+    fun togglePrivacyMode() {
+        _uiState.value = _uiState.value.copy(
+            isPrivacyMode = !_uiState.value.isPrivacyMode
+        )
+    }
+}
+
+data class DailyPulseUiState(
+    val userName: String = "",
+    val currentBalance: Double = 0.0,
+    val todayExpenses: Double = 0.0,
+    val monthIncome: Double = 0.0,
+    val monthExpenses: Double = 0.0,
+    val pulseStatus: PulseStatus = PulseStatus.GOOD,
+    val recentActivities: List<Activity> = emptyList(),
+    val potentialSubscriptions: List<RecurringPattern> = emptyList(),
+    val isPrivacyMode: Boolean = false,
+    val smartNudge: com.bitflow.finance.domain.usecase.SmartNudge? = null,
+    val financialHealth: com.bitflow.finance.domain.usecase.FinancialHealth? = null
+)
+    
+    // ... existing ...
+    
+    // ... existing ...
+
+    fun confirmSubscription(pattern: RecurringPattern) {
+        viewModelScope.launch {
+            // TODO: Save as confirmed subscription
+            // transactionRepository.confirmSubscription(pattern)
+            
+            // Remove from potential list
+            _uiState.value = _uiState.value.copy(
+                potentialSubscriptions = _uiState.value.potentialSubscriptions.filter { it != pattern }
+            )
+        }
+    }
+
+    fun dismissSubscription(pattern: RecurringPattern) {
+        viewModelScope.launch {
+            // Remove from list without saving
+            _uiState.value = _uiState.value.copy(
+                potentialSubscriptions = _uiState.value.potentialSubscriptions.filter { it != pattern }
+            )
+        }
+    }
+
+    fun deleteActivity(activityId: Long) {
+        viewModelScope.launch {
+            transactionRepository.deleteTransaction(activityId)
+            // TODO: Add undo support
+            // Balance will auto-refresh via Flow
+        }
+    }
+
+    fun togglePrivacyMode() {
+        _uiState.value = _uiState.value.copy(
+            isPrivacyMode = !_uiState.value.isPrivacyMode
+        )
+    }
+}
+
+data class DailyPulseUiState(
+    val userName: String = "",
+    val currentBalance: Double = 0.0,
+    val todayExpenses: Double = 0.0,
+    val monthIncome: Double = 0.0,
+    val monthExpenses: Double = 0.0,
+    val pulseStatus: PulseStatus = PulseStatus.GOOD,
+    val recentActivities: List<Activity> = emptyList(),
+    val potentialSubscriptions: List<RecurringPattern> = emptyList(),
+    val isPrivacyMode: Boolean = false,
+    val smartNudge: com.bitflow.finance.domain.usecase.SmartNudge? = null
+)
 
     /**
      * Calculate actual balance from all transactions
@@ -106,23 +246,36 @@ class DailyPulseViewModel @Inject constructor(
 
     /**
      * Phase 3: Detect potential subscriptions
+     * Now properly fetches transactions and uses SubscriptionDetective
      */
     private fun detectSubscriptions() {
         viewModelScope.launch {
-            val threeMonthsAgo = LocalDate.now().minusMonths(3)
-            val allTransactions = mutableListOf<com.bitflow.finance.data.local.entity.TransactionEntity>()
-            
-            // TODO: Get transactions from repository
-            // val transactions = transactionRepository.getTransactionsForSubscriptionDetection(threeMonthsAgo)
-            
-            val patterns = subscriptionDetective.detectPotentialSubscriptions(
-                transactions = allTransactions,
-                lookbackMonths = 3
-            )
+            try {
+                val threeMonthsAgo = LocalDate.now().minusMonths(3)
+                
+                // Actually fetch transactions from repository
+                val transactions = transactionRepository.getTransactionsForSubscriptionDetection(threeMonthsAgo)
+                
+                if (transactions.isEmpty()) {
+                    println("[Subscription] No transactions found for detection")
+                    return@launch
+                }
+                
+                println("[Subscription] Analyzing ${transactions.size} transactions for patterns")
+                
+                val patterns = subscriptionDetective.detectPotentialSubscriptions(
+                    transactions = transactions,
+                    lookbackMonths = 3
+                )
+                
+                println("[Subscription] Found ${patterns.size} potential subscriptions")
 
-            _uiState.value = _uiState.value.copy(
-                potentialSubscriptions = patterns.take(2) // Show max 2 at a time
-            )
+                _uiState.value = _uiState.value.copy(
+                    potentialSubscriptions = patterns.take(2) // Show max 2 at a time
+                )
+            } catch (e: Exception) {
+                println("[Subscription] Detection failed: ${e.message}")
+            }
         }
     }
 

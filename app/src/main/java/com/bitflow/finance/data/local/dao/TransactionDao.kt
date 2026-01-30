@@ -8,17 +8,18 @@ import androidx.room.Update
 import com.bitflow.finance.data.local.entity.TransactionEntity
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
+import com.bitflow.finance.domain.model.AppMode
 
 @Dao
 interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE userId = :userId AND accountId = :accountId ORDER BY txnDate DESC")
     fun getTransactionsForAccount(accountId: Long, userId: String): Flow<List<TransactionEntity>>
 
-    @Query("SELECT * FROM transactions WHERE userId = :userId ORDER BY txnDate DESC")
-    fun getAllTransactions(userId: String): Flow<List<TransactionEntity>>
+    @Query("SELECT * FROM transactions WHERE userId = :userId AND context = :context ORDER BY txnDate DESC")
+    fun getAllTransactions(userId: String, context: AppMode): Flow<List<TransactionEntity>>
 
-    @Query("SELECT * FROM transactions WHERE userId = :userId AND txnDate BETWEEN :startDate AND :endDate ORDER BY txnDate DESC")
-    fun getTransactionsInPeriod(startDate: LocalDate, endDate: LocalDate, userId: String): Flow<List<TransactionEntity>>
+    @Query("SELECT * FROM transactions WHERE userId = :userId AND context = :context AND txnDate BETWEEN :startDate AND :endDate ORDER BY txnDate DESC")
+    fun getTransactionsInPeriod(startDate: LocalDate, endDate: LocalDate, userId: String, context: AppMode): Flow<List<TransactionEntity>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTransaction(transaction: TransactionEntity): Long
@@ -61,8 +62,8 @@ interface TransactionDao {
     /**
      * Get recent transactions (for home screen)
      */
-    @Query("SELECT * FROM transactions WHERE userId = :userId ORDER BY txnDate DESC, createdAt DESC LIMIT :limit")
-    fun getRecentTransactions(limit: Int = 5, userId: String): Flow<List<TransactionEntity>>
+    @Query("SELECT * FROM transactions WHERE userId = :userId AND context = :context ORDER BY txnDate DESC, createdAt DESC LIMIT :limit")
+    fun getRecentTransactions(limit: Int = 5, userId: String, context: AppMode): Flow<List<TransactionEntity>>
     
     /**
      * Delete transaction by ID (with undo support)
@@ -91,4 +92,29 @@ interface TransactionDao {
      */
     @Query("SELECT * FROM transactions WHERE userId = :userId AND accountId = :accountId ORDER BY txnDate DESC, createdAt DESC LIMIT 1")
     suspend fun getLatestTransactionWithBalance(accountId: Long, userId: String): TransactionEntity?
+    
+    /**
+     * Get total spent in a category within a date range (for budget tracking)
+     */
+    @Query("""
+        SELECT COALESCE(SUM(amount), 0) FROM transactions 
+        WHERE userId = :userId AND categoryId = :categoryId 
+        AND direction = 'EXPENSE'
+        AND createdAt BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getTotalSpentInCategory(categoryId: Long, userId: String, startDate: Long, endDate: Long): Double
+
+    @Query("""
+        SELECT t.* FROM transactions t
+        INNER JOIN categories c ON t.categoryId = c.id
+        WHERE t.userId = :userId 
+        AND c.isTaxDeductible = 1
+        AND t.txnDate BETWEEN :startDate AND :endDate
+        ORDER BY t.txnDate DESC
+    """)
+    @Query("SELECT * FROM transactions")
+    suspend fun getAllTransactionsRaw(): List<TransactionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTransactionRaw(transaction: TransactionEntity)
 }

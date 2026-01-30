@@ -24,6 +24,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.bitflow.finance.ui.screens.split.SplitDashboardScreen
+import com.bitflow.finance.ui.screens.split.GroupDetailScreen
+import com.bitflow.finance.ui.screens.split.AddExpenseScreen
 import com.bitflow.finance.ui.screens.accounts.AccountsScreen
 import com.bitflow.finance.ui.screens.add_transaction.AddTransactionScreen
 import com.bitflow.finance.ui.screens.analysis.AnalysisScreen
@@ -45,27 +48,35 @@ import androidx.compose.material.icons.filled.Receipt
 import com.bitflow.finance.ui.screens.invoice.InvoicePreviewScreen
 import com.bitflow.finance.ui.screens.profile.ProfileScreen
 import com.bitflow.finance.ui.screens.bitflow.BitflowInsightsScreen
+import com.bitflow.finance.ui.screens.goals.SavingsGoalsScreen
+import com.bitflow.finance.ui.screens.bills.BillRemindersScreen
+import com.bitflow.finance.ui.screens.budget.BudgetScreen
+import com.bitflow.finance.ui.screens.templates.TemplatesScreen
+import com.bitflow.finance.ui.screens.gst.GstSummaryScreen
+import com.bitflow.finance.ui.screens.clients.ClientLedgerScreen
+import com.bitflow.finance.ui.screens.reports.PnLScreen
+import com.bitflow.finance.ui.screens.tds.TdsTrackerScreen
+import com.bitflow.finance.ui.screens.backup.BackupScreen
+import com.bitflow.finance.ui.screens.security.DecoyPinScreen
+import com.bitflow.finance.ui.screens.analytics.CashFlowScreen
+import com.bitflow.finance.ui.screens.analytics.LifestyleInflationScreen
+import com.bitflow.finance.ui.screens.analytics.SpendingHeatmapScreen
+import com.bitflow.finance.ui.screens.debt.DebtScreen
+import com.bitflow.finance.ui.screens.investments.InvestmentScreen
+import com.bitflow.finance.ui.screens.tax.TaxHelperScreen
+import com.bitflow.finance.ui.screens.tools.ToolsScreen
 
 @Composable
-fun FinanceAppNavigation(isBitflowAdmin: Boolean) {
+
+fun FinanceAppNavigation() {
     val navController = rememberNavController()
 
-    val items = if (isBitflowAdmin) {
-        listOf(
-            Screen.Home,
-            Screen.Transactions,
-            Screen.Bitflow,
-            Screen.Insights,
-            Screen.Profile
-        )
-    } else {
-        listOf(
-            Screen.Home,
-            Screen.Transactions,
-            Screen.Insights,
-            Screen.Profile
-        )
-    }
+    val items = listOf(
+        Screen.Home,
+        Screen.Transactions,
+        Screen.Insights,
+        Screen.Profile
+    )
 
     Scaffold(
         bottomBar = {
@@ -131,7 +142,11 @@ fun FinanceAppNavigation(isBitflowAdmin: Boolean) {
                     },
                     onAnalyticsClick = { navController.navigate(Screen.Insights.route) },
                     onSeeAllTransactionsClick = { navController.navigate(Screen.Transactions.route) },
-                    onProfileClick = { navController.navigate(Screen.Profile.route) }
+                    onProfileClick = { navController.navigate(Screen.Profile.route) },
+                    onImportClick = { navController.navigate("import") },
+                    onGenerateInvoice = { navController.navigate("invoice") },
+                    onViewInvoices = { navController.navigate("invoice_records") },
+                    onToolsClick = { navController.navigate("tools") }
                 )
             }
             composable(Screen.Profile.route) {
@@ -143,27 +158,141 @@ fun FinanceAppNavigation(isBitflowAdmin: Boolean) {
                     onImportClick = { navController.navigate("import") }
                 )
             }
+            composable("savings_goals") {
+                SavingsGoalsScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("bill_reminders") {
+                BillRemindersScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("budget") {
+                BudgetScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("templates") {
+                TemplatesScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("gst_summary") {
+                GstSummaryScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("client_ledger") {
+                ClientLedgerScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("pnl_report") {
+                PnLScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("tds_tracker") {
+                TdsTrackerScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("backup") {
+                BackupScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("decoy_pin") {
+                DecoyPinScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("cash_forecast") {
+                com.bitflow.finance.ui.screens.analytics.CashForecastScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("cash_flow") {
+                CashFlowScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("lifestyle_inflation") {
+                LifestyleInflationScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("spending_heatmap") {
+                SpendingHeatmapScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("debt_tracker") {
+                DebtScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("investment_tracker") {
+                InvestmentScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("tax_helper") {
+                TaxHelperScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("tools") {
+                ToolsScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
+            composable("currency_converter") {
+                // Placeholder for Currency Converter
+                androidx.compose.material3.Text("Currency Converter Coming Soon")
+            }
+            composable("receipt_scanner") {
+                // Placeholder for Receipt Scanner
+                androidx.compose.material3.Text("Receipt Scanner Coming Soon")
+            }
             composable(Screen.Accounts.route) {
                 AccountsScreen()
             }
             
-            if (isBitflowAdmin) {
-                composable(Screen.Bitflow.route) {
-                    BitflowScreen(
-                        onInvoiceGeneratorClick = { navController.navigate("invoice") },
-                        onInvoiceRecordsClick = { navController.navigate("invoice_records") },
-                        onInsightsClick = { navController.navigate("bitflow_insights") }
-                    )
-                }
-                composable("bitflow_insights") {
-                    BitflowInsightsScreen(
-                        onBackClick = { navController.popBackStack() }
-                    )
-                }
+            // Expense Split Feature
+            composable("expense_split") {
+                SplitDashboardScreen(
+                    onGroupClick = { groupId -> navController.navigate("group_detail/$groupId") },
+                    onCreateGroupClick = { /* TODO: Implement Add Group Dialog or Screen */ }
+                )
             }
+            composable(
+                route = "group_detail/{groupId}",
+                arguments = listOf(navArgument("groupId") { type = NavType.StringType })
+            ) {
+                GroupDetailScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onAddExpenseClick = { groupId -> navController.navigate("add_expense/$groupId") }
+                )
+            }
+            composable(
+                route = "add_expense/{groupId}",
+                arguments = listOf(navArgument("groupId") { type = NavType.StringType })
+            ) {
+                AddExpenseScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            
+            // Bitflow Admin Screen removed/replaced by Business Mode
+            // Invoice & Insight routes exposed below
 
             composable(Screen.Insights.route) {
-                AnalysisScreen()
+                AnalysisScreen(
+                    onCashForecastClick = { navController.navigate("cash_forecast") }
+                )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
@@ -176,30 +305,29 @@ fun FinanceAppNavigation(isBitflowAdmin: Boolean) {
                 )
             }
             
-            if (isBitflowAdmin) {
-                composable("invoice") {
-                    InvoiceGeneratorScreen(
-                        onBackClick = { navController.popBackStack() }
-                    )
-                }
-                composable("invoice_records") {
-                    InvoiceRecordsScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onInvoiceClick = { invoiceId ->
-                            navController.navigate("invoice_preview/$invoiceId")
-                        }
-                    )
-                }
-                composable(
-                    route = "invoice_preview/{invoiceId}",
-                    arguments = listOf(navArgument("invoiceId") { type = NavType.LongType })
-                ) { backStackEntry ->
-                    val invoiceId = backStackEntry.arguments?.getLong("invoiceId") ?: 0L
-                    InvoicePreviewScreen(
-                        invoiceId = invoiceId,
-                        onBackClick = { navController.popBackStack() }
-                    )
-                }
+            // Invoice Routes (Accessible in Business Mode via Home Screen)
+            composable("invoice") {
+                InvoiceGeneratorScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable("invoice_records") {
+                InvoiceRecordsScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onInvoiceClick = { invoiceId ->
+                        navController.navigate("invoice_preview/$invoiceId")
+                    }
+                )
+            }
+            composable(
+                route = "invoice_preview/{invoiceId}",
+                arguments = listOf(navArgument("invoiceId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val invoiceId = backStackEntry.arguments?.getLong("invoiceId") ?: 0L
+                InvoicePreviewScreen(
+                    invoiceId = invoiceId,
+                    onBackClick = { navController.popBackStack() }
+                )
             }
 
             composable(Screen.Transactions.route) {

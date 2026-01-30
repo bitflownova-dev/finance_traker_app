@@ -56,7 +56,6 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Observe Auth State
         lifecycleScope.launch {
             authRepository.currentUser.collect { user ->
                 isUserLoggedIn = user != null
@@ -65,6 +64,10 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+        
+        // Schedule Workers
+        com.bitflow.finance.worker.MonthlyInsightsWorker.schedule(applicationContext)
+        com.bitflow.finance.workers.LowBalanceWorker.schedule(applicationContext)
 
         lifecycleScope.launch {
             isBiometricEnabled = settingsRepository.isBiometricEnabled.first()
@@ -103,7 +106,7 @@ class MainActivity : FragmentActivity() {
                             }
                         )
                     } else if (isAuthenticated) {
-                        FinanceAppNavigation(isBitflowAdmin = isBitflowAdmin)
+                        FinanceAppNavigation()
                     } else {
                         LockScreen(onUnlockClick = { showBiometricPrompt() })
                     }
@@ -113,22 +116,16 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun showBiometricPrompt() {
-        val executor = ContextCompat.getMainExecutor(this)
-        val biometricPrompt = BiometricPrompt(this, executor,
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    super.onAuthenticationSucceeded(result)
-                    isAuthenticated = true
-                }
-            })
-
-        val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Biometric Login")
-            .setSubtitle("Log in using your biometric credential")
-            .setNegativeButtonText("Cancel")
-            .build()
-
-        biometricPrompt.authenticate(promptInfo)
+        val biometricHelper = com.bitflow.finance.utils.BiometricHelper(this)
+        if (biometricHelper.canAuthenticate()) {
+            biometricHelper.authenticate(
+                onSuccess = { isAuthenticated = true },
+                onError = { /* Handle error or just stay locked */ }
+            )
+        } else {
+            // Fallback if hardware not present, or just allow access if we can't lock
+            isAuthenticated = true
+        }
     }
 }
 

@@ -30,7 +30,8 @@ import com.bitflow.finance.ui.components.TimeFilter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalysisScreen(
-    viewModel: AnalysisViewModel = hiltViewModel()
+    viewModel: AnalysisViewModel = hiltViewModel(),
+    onCashForecastClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedFilter by remember { mutableStateOf(TimeFilter.THIS_MONTH) }
@@ -79,7 +80,22 @@ fun AnalysisScreen(
                     selectedFilter = it
                     viewModel.loadAnalysis(it)
                 }
+                onFilterSelected = { 
+                    selectedFilter = it
+                    viewModel.loadAnalysis(it)
+                }
             )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Forecast Button
+            Button(
+                onClick = onCashForecastClick,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)
+            ) {
+                Text("🔮 View Cash Forecast (30 Days)")
+            }
             
             Spacer(modifier = Modifier.height(24.dp))
 

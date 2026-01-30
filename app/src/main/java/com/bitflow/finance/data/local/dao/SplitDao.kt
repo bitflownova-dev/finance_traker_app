@@ -73,7 +73,6 @@ interface SplitDao {
     @Query("UPDATE split_expenses SET isSettled = 1 WHERE expenseId = :expenseId")
     suspend fun markExpenseAsSettled(expenseId: String)
     
-    // Balance calculation - get balance for a specific user in a group
     @Query("""
         SELECT 
             :userId as userId,
@@ -84,10 +83,36 @@ interface SplitDao {
         WHERE se.groupId = :groupId
     """)
     suspend fun getGroupBalance(groupId: String, userId: String): GroupBalance?
+    
+    /**
+     * Efficiently fetch all group balances for a user in a single query.
+     * Prevents N+1 query problem when loading the dashboard.
+     */
+    @Query("""
+        SELECT 
+            sg.groupId,
+            sg.groupName,
+            COALESCE(SUM(CASE WHEN ses.userId = :userId AND ses.isPaid = 0 THEN ses.shareAmount ELSE 0 END), 0) as owingAmount,
+            COALESCE(SUM(CASE WHEN se.paidBy = :userId AND ses.userId != :userId AND ses.isPaid = 0 THEN ses.shareAmount ELSE 0 END), 0) as owedAmount
+        FROM split_groups sg
+        LEFT JOIN split_expenses se ON sg.groupId = se.groupId
+        LEFT JOIN split_expense_shares ses ON se.expenseId = ses.expenseId
+        WHERE sg.isActive = 1
+          AND sg.groupId IN (SELECT groupId FROM split_group_members WHERE userId = :userId AND isActive = 1)
+        GROUP BY sg.groupId
+    """)
+    suspend fun getAllGroupBalancesForUser(userId: String): List<GroupBalanceWithName>
 }
 
 data class GroupBalance(
     val userId: String,
     val owingAmount: Double,  // Amount user owes to others
     val owedAmount: Double    // Amount others owe to user
+)
+
+data class GroupBalanceWithName(
+    val groupId: String,
+    val groupName: String,
+    val owingAmount: Double,
+    val owedAmount: Double
 )

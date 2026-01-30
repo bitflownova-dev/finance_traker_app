@@ -8,6 +8,14 @@ import com.bitflow.finance.domain.repository.SettingsRepository
 import com.bitflow.finance.domain.repository.TransactionRepository
 import com.bitflow.finance.data.repository.AuthRepositoryImpl
 import com.bitflow.finance.domain.repository.AuthRepository
+import com.bitflow.finance.data.repository.SavingsGoalRepositoryImpl
+import com.bitflow.finance.domain.repository.SavingsGoalRepository
+import com.bitflow.finance.data.repository.BillReminderRepositoryImpl
+import com.bitflow.finance.domain.repository.BillReminderRepository
+import com.bitflow.finance.data.repository.DebtRepositoryImpl
+import com.bitflow.finance.domain.repository.DebtRepository
+import com.bitflow.finance.data.repository.InvestmentRepositoryImpl
+import com.bitflow.finance.domain.repository.InvestmentRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -36,4 +44,24 @@ abstract class RepositoryModule {
     abstract fun bindAuthRepository(
         authRepositoryImpl: AuthRepositoryImpl
     ): AuthRepository
+
+    @Binds
+    abstract fun bindSavingsGoalRepository(
+        savingsGoalRepositoryImpl: SavingsGoalRepositoryImpl
+    ): SavingsGoalRepository
+
+    @Binds
+    abstract fun bindBillReminderRepository(
+        billReminderRepositoryImpl: BillReminderRepositoryImpl
+    ): BillReminderRepository
+
+    @Binds
+    abstract fun bindDebtRepository(
+        debtRepositoryImpl: DebtRepositoryImpl
+    ): DebtRepository
+
+    @Binds
+    abstract fun bindInvestmentRepository(
+        investmentRepositoryImpl: InvestmentRepositoryImpl
+    ): InvestmentRepository
 }
